@@ -8,14 +8,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Classes\Hook;
-use App\Classes\Output;
 use App\Models\Customer;
 use App\Models\DashboardDay;
+use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Role;
 use App\Services\DateService;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
 
 class DashboardController extends Controller
@@ -60,21 +60,6 @@ class DashboardController extends Controller
             ->orderBy( 'total_sales', 'desc' )
             ->limit( 10 )
             ->get();
-    }
-
-    /**
-     * Will create a hook that will inject
-     * Output object on the footer. Useful to create
-     * custom output per page.
-     *
-     * @param  string $name
-     * @return void
-     */
-    public function hookOutput( $name )
-    {
-        Hook::addAction( 'ns-dashboard-footer', function ( Output $output ) use ( $name ) {
-            Hook::action( $name, $output );
-        }, 15 );
     }
 
     public function getWeekReports()
@@ -142,5 +127,23 @@ class DashboardController extends Controller
             'range_ends' => $currentWeekEnds->toDateTimeString(),
             'result' => $weekMap,
         ];
+    }
+
+    public function createSymbolicLinks( Request $request )
+    {
+        // we might delete the notification that is provided on the query parameters
+        if ( $request->has( 'notification_id' ) ) {
+            $notification = Notification::find( $request->get( 'notification_id' ) );
+            if ( $notification ) {
+                $notification->delete();
+            }
+        }
+
+        ns()->createSymbolicLinks();
+
+        return response()->json( [
+            'status' => 'success',
+            'message' => __( 'Symbolic links created successfully.' ),
+        ] );
     }
 }

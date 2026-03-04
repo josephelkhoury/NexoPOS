@@ -47,8 +47,10 @@ tests/database.sqlite-journal
 tests/Post/*
 storage/snapshots/*.sql
 storage/temporary-files/*
+storage/opus-backups
 .idea
 public/hot
 .phpunit.cache/test-results
 storage/dotenv-editor
 .cloud
+ns

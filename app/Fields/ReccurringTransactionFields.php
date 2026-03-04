@@ -13,7 +13,12 @@ use App\Services\Helper;
 
 class ReccurringTransactionFields extends FieldsService
 {
-    protected static $identifier = Transaction::TYPE_RECURRING;
+    const IDENTIFIER = Transaction::TYPE_RECURRING;
+
+    /**
+     * Ensures the fields are automatically loaded.
+     */
+    const AUTOLOAD = true;
 
     public function __construct( ?Transaction $transaction = null )
     {

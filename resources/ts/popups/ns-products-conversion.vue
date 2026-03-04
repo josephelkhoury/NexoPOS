@@ -1,7 +1,7 @@
 <template>
-    <div class="shadow-lg w-6/7-screen lg:w-3/5-screen ns-box overflow-hidden flex flex-col">
+    <div class="shadow-lg w-[85.71vw] lg:w-[60vw] ns-box overflow-hidden flex flex-col">
         <template v-if="unitQuantities.length > 0">
-            <div class="p-2 border-b ns-box-header text-primary text-center font-medium flex justify-between items-center">
+            <div class="p-2 border-b ns-box-header text-fontcolor text-center font-medium flex justify-between items-center">
                 <div>
                     {{ __( 'Unit Conversion : {product}' ).replace( '{product}', product.name ) }}
                 </div>
@@ -111,14 +111,14 @@ export default {
         __,
         async submitConvertion() {
             if ( this.unitPair.from.quantity === 0 ) {
-                return nsSnackBar.error( __( 'The quantity should be greater than 0' ) ).subscribe();
+                return nsSnackBar.error( __( 'The quantity should be greater than 0' ) );
             }
 
             if ( Math.floor( this.unitPair.to.quantity ) === 0 ) {
                 return nsSnackBar.error( 
                     __( 'The provided quantity can\'t result in any convertion for unit "{destination}"' )
                         .replace( '{destination}', this.unitPair.to.unit.name )
-                ).subscribe();
+                );
             }
 
             if ( this.unitPair.from.quantity !== this.unitPair.from.realQuantity ) {
@@ -232,7 +232,7 @@ export default {
              */
             if ( quantity > this.unitPair.from.unitQuantity.quantity ) {
                 quantity    =   this.unitPair.from.unitQuantity.quantity;
-                nsSnackBar.info( __( 'The quantity has been set to the maximum available' ) ).subscribe();
+                nsSnackBar.info( __( 'The quantity has been set to the maximum available' ) );
             }
 
             this.unitPair.from.quantity    =   parseFloat( quantity );

@@ -40,7 +40,7 @@ export default {
                     this.popup.close();
                 }, 500 );
                 
-                return nsSnackBar.error( __( 'The register is not yet loaded.' ) ).subscribe();
+                return nsSnackBar.error( __( 'The register is not yet loaded.' ) );
             }
 
             nsHttpClient.get( `/api/cash-registers/${this.settings.register.id}` )
@@ -149,7 +149,7 @@ export default {
 }
 </script>
 <template>
-    <div class="shadow-lg w-95vw md:w-3/5-screen lg:w-2/4-screen ns-box">
+    <div class="shadow-lg w-95vw md:w-[60vw] lg:w-half ns-box">
         <div class="p-2 border-b ns-box-header flex items-center justify-between">
             <h3>{{ __( 'Register Options' ) }}</h3>
             <div>
@@ -157,11 +157,11 @@ export default {
             </div>
         </div>
         <div v-if="register.total_sale_amount !== undefined && register.balance !== undefined">
-            <div class="h-16 text-3xl elevation-surface info flex items-center justify-between px-3">
+            <div class="h-16 text-3xl bg-info-primary info flex items-center justify-between px-3">
                 <span class="">{{ __( 'Sales' ) }}</span>
                 <span class="font-bold">{{ nsCurrency( register.total_sale_amount ) }}</span>
             </div>
-            <div class="h-16 text-3xl elevation-surface success flex items-center justify-between px-3">
+            <div class="h-16 text-3xl bg-success-primary success flex items-center justify-between px-3">
                 <span class="">{{ __( 'Balance' ) }}</span>
                 <span class="font-bold">{{ nsCurrency( register.balance ) }}</span>
             </div>
@@ -171,7 +171,7 @@ export default {
                 <ns-spinner border="4" size="16"></ns-spinner>
             </div>
         </div>
-        <div class="grid grid-cols-2 text-primary">
+        <div class="grid grid-cols-2 text-font">
             <div @click="closeCashRegister( register )" class="border-r border-b py-4 ns-numpad-key info cursor-pointer px-2 flex items-center justify-center flex-col">
                 <i class="las la-sign-out-alt text-6xl"></i>
                 <h3 class="text-xl font-bold">{{ __( 'Close' ) }}</h3>

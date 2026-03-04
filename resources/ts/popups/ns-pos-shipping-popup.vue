@@ -1,7 +1,7 @@
 <template>
-    <div class="ns-box w-6/7-screen md:w-4/5-screen lg:w-3/5-screen h-6/7-screen md:h-4/5-screen shadow-lg flex flex-col overflow-hidden">
+    <div class="ns-box w-[85.71vw] md:w-[80vw] lg:w-[60vw] h-[85vh] md:h-[80vh] shadow-lg flex flex-col overflow-hidden">
         <div class="p-2 border-b ns-box-header flex justify-between items-center">
-            <h3 class="font-bold text-primary">{{ __( 'Shipping & Billing' ) }}</h3>
+            <h3 class="font-bold text-font">{{ __( 'Shipping & Billing' ) }}</h3>
             <div class="tools">
                 <button @click="closePopup()" class="ns-close-button rounded-full h-8 w-8 border items-center justify-center">
                     <i class="las la-times"></i>
@@ -9,12 +9,16 @@
             </div>
         </div>
         <div class="flex-auto ns-box-body p-2 overflow-y-auto ns-tab">
+            <ns-notice v-if="order!= null && !order.customer" class="mb-2">
+                <template #title>{{  __( 'No customer is selected' ) }}</template>
+                <template #description>{{ __( 'Please select a customer before proceeding' ) }}</template>
+            </ns-notice>
             <div id="tabs-container">
                 <div class="header flex" style="margin-bottom: -1px;">
-                    <div :key="identifier" v-for="( tab , identifier ) of tabs" @click="toggle( identifier )" :class="tab.active ? 'border-b-0 active' : 'inactive'" class="tab rounded-tl rounded-tr border tab  px-3 py-2 text-primary cursor-pointer" style="margin-right: -1px">{{ tab.label }}</div>
+                    <div :key="identifier" v-for="( tab , identifier ) of tabs" @click="toggle( identifier )" :class="tab.active ? 'border-b-0 active' : 'inactive'" class="tab rounded-tl rounded-tr border tab  px-3 py-2 text-fontcolor cursor-pointer" style="margin-right: -1px">{{ tab.label }}</div>
                 </div>
-                <div class="border ns-tab-item">
-                    <div class="px-4">
+                <div class="ns-tab-item">
+                    <div class="px-4 border">
                         <div class="-mx-4 flex flex-wrap">
                             <div :key="index" :class="'p-4 w-full md:w-1/2 lg:w-1/3'" v-for="(field,index) of activeTabFields">
                                 <ns-field @blur="formValidation.checkField( field )" @change="formValidation.checkField( field )" :field="field"/>
@@ -36,6 +40,7 @@
 import resolveIfQueued from "~/libraries/popup-resolver";
 import FormValidation from '~/libraries/form-validation';
 import popupCloser from "~/libraries/popup-closer";
+import { nsSnackBar } from "~/bootstrap";
 
 // declare const __, POS, nsHttpClient;
 
@@ -80,7 +85,7 @@ export default {
     },
     watch: {
         useBillingInfo( value ) {
-            if ( value === 1 ) {
+            if ( value === 1 && this.order.customer ) {
                 this.tabs.billing.fields.forEach( field => {
                     if ( field.name !== '_use_customer_billing' ) {
                         field.value     =   this.order.customer.billing ? this.order.customer.billing[ field.name ] : field.value;
@@ -89,7 +94,7 @@ export default {
             }
         },
         useShippingInfo( value ) {
-            if ( value === 1 ) {
+            if ( value === 1 && this.order.customer ) {
                 this.tabs.shipping.fields.forEach( field => {
                     if ( field.name !== '_use_customer_shipping' ) {
                         field.value     =   this.order.customer.shipping ? this.order.customer.shipping[ field.name ] : field.value;
@@ -105,6 +110,13 @@ export default {
         resolveIfQueued,
 
         submitInformations() {
+            const errors = this.formValidation.validateForm({ tabs: this.tabs });
+
+            if ( errors.length > 0 ) {
+                nsSnackBar.error( __( 'Please correct the errors in the form' ) );
+                return;
+            }
+
             const form  =   this.formValidation.extractForm({ tabs : this.tabs });
 
             /**
@@ -155,7 +167,9 @@ export default {
                     for( let index in tabs ) {
                         if ( index === 'general' ) {
                             tabs[ index ].fields.forEach( field => {
-                                field.value     =   this.order[ field.name ] || '';
+                                field.value     =   this.order[ field.name ] || (
+                                    /\d/.test( field.value ) || field.value.length > 0 ? field.value : ''
+                                );
                             });
                         } else {
                             tabs[ index ].fields.forEach( field => {

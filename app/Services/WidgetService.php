@@ -253,7 +253,11 @@ class WidgetService
                         ->where( 'column', $columnName )
                         ->orderBy( 'position' )
                         ->get()
-                        ->filter( fn( $widget ) => Gate::allows( ( new $widget->class_name )->getPermission() ) )
+                        ->filter( function ( $widget ) {
+                            $class = $widget->class_name;
+
+                            return class_exists( $class ) && Gate::allows( ( new $class )->getPermission() );
+                        } )
                         ->values(),
                 ];
             } )->toArray();

@@ -1,5 +1,5 @@
 <template>
-    <div class="ns-box shadow-lg w-95vw md:w-3/5-screen lg:w-2/5-screen">
+    <div class="ns-box shadow-lg w-95vw md:w-[60vw] lg:w-[40vw]">
         <div class="p-2 flex justify-between items-center border-b ns-box-header">
             <h3 class="text-blog">{{ __( 'Tax & Summary' ) }}</h3>
             <div>
@@ -22,7 +22,7 @@
                             <span>{{ tax.name }}</span>
                             <span>{{ nsCurrency( tax.tax_value ) }}</span>
                         </div>
-                        <div class="p-2 text-center text-primary" v-if="order.taxes.length === 0">{{ __( 'No tax is active' ) }}</div>
+                        <div class="p-2 text-center text-font" v-if="order.taxes.length === 0">{{ __( 'No tax is active' ) }}</div>
                     </div>
                 </ns-tabs-item>
                 <ns-tabs-item v-if="[ 'products_vat' ].includes( options.ns_pos_vat )" padding="0" :label="__( 'Product Taxes' )" identifier="product_taxes" :active="false">
@@ -133,7 +133,7 @@ export default {
 
         saveTax() {
             if ( ! this.validation.validateFields( this.group_fields ) ) {
-                return nsSnackBar.error( __( 'Unable to proceed the form is not valid.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed the form is not valid.' ) );
             }
 
             const fields    =   this.validation.extractFields( this.group_fields );

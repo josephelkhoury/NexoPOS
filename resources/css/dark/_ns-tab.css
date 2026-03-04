@@ -1,0 +1,57 @@
+.ns-tab {
+    .tab {
+        @apply border-tab-active-border text-fontcolor border-b-transparent;
+        
+        &.active {
+            @apply bg-tab-active;
+        }
+        &.inactive {
+            @apply bg-tab-inactive;
+        }
+    }
+}
+.ns-tab-item > div {
+    @apply border-box-edge bg-tab-active text-fontcolor;
+    
+    .ns-tab-item-footer {
+        @apply border-box-edge;
+    }
+
+    .ns-tab {
+        .tab {
+            @apply border-tab-active-border text-fontcolor border-b-transparent;
+            
+            &.active {
+                @apply bg-gray-500;
+            }
+            &.inactive {
+                @apply bg-gray-600;
+            }
+        }
+        .ns-tab-item > div {
+            @apply bg-gray-500;
+        }
+    }
+
+    .ns-tab-item > div {
+        @apply bg-box-elevation-background;
+    }
+}
+
+.is-popup {
+    .ns-tab {
+        .tab {
+            @apply border-tab-active-border text-fontcolor border-b-transparent;
+            
+            &.active {
+                @apply bg-gray-600 border-gray-800;
+            }
+            &.inactive {
+                @apply bg-gray-700 border-gray-800;
+            }
+        }
+        .ns-tab-item > div {
+            @apply border-box-edge bg-gray-600 text-fontcolor;
+        }
+    }
+}

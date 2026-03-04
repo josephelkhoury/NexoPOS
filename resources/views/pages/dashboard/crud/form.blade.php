@@ -1,6 +1,6 @@
 <?php
-use App\Classes\Hook;
 use App\Classes\Output;
+use App\Events\RenderCrudFormFooterEvent;
 ?>
 @extends( 'layout.dashboard' )
 
@@ -26,9 +26,5 @@ use App\Classes\Output;
 
 @section( 'layout.dashboard.footer' )
     @parent
-    <?php
-    $output     =   new Output;
-    Hook::action( 'ns-crud-form-footer', $output, $namespace )
-    ?>
-    {!! ( string ) $output !!}
+    <?php echo Output::dispatch( RenderCrudFormFooterEvent::class, $instance ); ?>
 @endsection

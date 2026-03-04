@@ -1,0 +1,57 @@
+.ns-tab {
+    .tab {
+        @apply border-tab-active-border text-fontcolor border-b-transparent;
+        
+        &.active {
+            @apply bg-tab-active;
+        }
+        &.inactive {
+            @apply bg-tab-inactive;
+        }
+    }
+}
+.ns-tab-item > div {
+    @apply border-box-edge bg-tab-active text-fontcolor;
+    
+    .ns-tab-item-footer {
+        @apply border-[#333];
+    }
+
+    .ns-tab {
+        .tab {
+            @apply border-tab-active-border text-fontcolor border-b-transparent;
+            
+            &.active {
+                @apply bg-[#574f44];
+            }
+            &.inactive {
+                @apply bg-tab-active mb-[1px];
+            }
+        }
+        .ns-tab-item > div {
+            @apply bg-[#574f44];
+        }
+    }
+
+    .ns-tab-item > div {
+        @apply bg-box-elevation-background;
+    }
+}
+
+.is-popup {
+    .ns-tab {
+        .tab {
+            @apply border-tab-active-border text-fontcolor border-b-transparent;
+            
+            &.active {
+                @apply bg-[#574f44] border-gray-800;
+            }
+            &.inactive {
+                @apply bg-[#433e37] border-gray-800;
+            }
+        }
+        .ns-tab-item > div {
+            @apply border-box-edge bg-[#574f44] text-fontcolor;
+        }
+    }
+}

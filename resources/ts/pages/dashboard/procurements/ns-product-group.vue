@@ -3,7 +3,7 @@
         <div class="md:-mx-4 flex flex-col md:flex-row">
             <div class="md:px-4 w-full">
                 <div class="input-group border-2 rounded info flex w-full">
-                    <input :placeholder="__( 'Search products...' )" v-model="searchValue" type="text" class="flex-auto p-2 outline-none">
+                    <input :placeholder="__( 'Search products...' )" v-model="searchValue" type="text" class="flex-auto p-2 outline-hidden">
                     <button @click="setSalePrice()" class="px-2">{{ __( 'Set Sale Price' ) }}</button>
                 </div>
                 <div class="h-0 relative" v-if="results.length > 0 && searchValue.length > 0">
@@ -193,8 +193,7 @@ export default {
 
             if ( result.type === 'grouped' ) {
                 return nsSnackBar
-                    .error( __( 'Unable to add a grouped product.' ) )
-                    .subscribe();
+                    .error( __( 'Unable to add a grouped product.' ) );
             }
 
             try {
@@ -261,7 +260,7 @@ export default {
                     this.results    =   results;
                 },
                 error: error => {
-                    nsSnackBar.error( error.message || __( 'An unexpected error occurred' ), __( 'Ok' ), { duration: 3000 }).subscribe();
+                    nsSnackBar.error( error.message || __( 'An unexpected error occurred' ), __( 'Ok' ), { duration: 3000 });
                 }
             })
         }

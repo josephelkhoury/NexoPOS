@@ -2,27 +2,27 @@
     <div class="h-full w-full py-2">
         <div class="px-2 pb-2" v-if="order">
             <div class="grid grid-cols-2 gap-2">
-                <div id="details" class="h-16 flex justify-between items-center elevation-surface border info text-xl md:text-3xl p-2">
+                <div id="details" class="h-16 flex justify-between items-center text-white elevation-surface border info text-xl md:text-3xl p-2">
                     <span>{{ __( 'Total' ) }} : </span>
                     <span>{{ nsCurrency( order.total ) }}</span>
                 </div>
-                <div id="discount" @click="toggleDiscount()" class="cursor-pointer h-16 flex justify-between items-center elevation-surface error border text-xl md:text-3xl p-2">
+                <div id="discount" @click="toggleDiscount()" class="cursor-pointer h-16 flex justify-between items-center text-white elevation-surface error border text-xl md:text-3xl p-2">
                     <span>{{ __( 'Discount' ) }} : </span>
                     <span>{{ nsCurrency( order.discount ) }}</span>
                 </div>
-                <div id="paid" class="h-16 flex justify-between items-center elevation-surface success border text-xl md:text-3xl p-2">
+                <div id="paid" class="h-16 flex justify-between items-center text-white elevation-surface success border text-xl md:text-3xl p-2">
                     <span>{{ __( 'Paid' ) }} : </span>
                     <span>{{ nsCurrency( order.tendered ) }}</span>
                 </div>
-                <div id="change" class="h-16 flex justify-between items-center elevation-surface warning border text-xl md:text-3xl p-2">
+                <div id="change" class="h-16 flex justify-between items-center text-white elevation-surface warning border text-xl md:text-3xl p-2">
                     <span>{{ __( 'Change' ) }} : </span>
                     <span>{{ nsCurrency( order.change ) }}</span>
                 </div>
-                <div id="change" class="col-span-2 h-16 flex justify-between items-center elevation-surface border success text-xl md:text-3xl p-2">
+                <div id="current-balance" class="col-span-2 h-16 flex justify-between items-center text-white elevation-surface border success text-xl md:text-3xl p-2">
                     <span>{{ __( 'Current Balance' ) }} : </span>
                     <span>{{ nsCurrency( order.customer.account_amount ) }}</span>
                 </div>
-                <div id="change" class="col-span-2 h-16 flex justify-between items-center elevation-surface border text-primary text-xl md:text-3xl p-2">
+                <div id="screen" class="col-span-2 h-16 flex justify-between items-center text-white! elevation-surface border text-xl md:text-3xl p-2">
                     <span>{{ __( 'Screen' ) }} : </span>
                     <span>{{ nsCurrency( screenValue ) }}</span>
                 </div>
@@ -44,17 +44,17 @@
                     <div class="grid grid-flow-row grid-rows-1 gap-2">
                         <div 
                             @click="increaseBy({ value : 100 })"
-                            class="elevation-surface border hoverable text-2xl text-primary h-16 flex items-center justify-center cursor-pointer">
+                            class="elevation-surface border hoverable text-2xl text-fontcolor h-16 flex items-center justify-center cursor-pointer">
                             <span>{{ nsCurrency( 100 ) }}</span>
                         </div>
                         <div 
                             @click="increaseBy({ value : 500 })"
-                            class="elevation-surface border hoverable text-2xl text-primary h-16 flex items-center justify-center cursor-pointer">
+                            class="elevation-surface border hoverable text-2xl text-fontcolor h-16 flex items-center justify-center cursor-pointer">
                             <span >{{ nsCurrency( 500 ) }}</span>
                         </div>
                         <div 
                             @click="increaseBy({ value : 1000 })"
-                            class="elevation-surface border hoverable text-2xl text-primary h-16 flex items-center justify-center cursor-pointer">
+                            class="elevation-surface border hoverable text-2xl text-fontcolor h-16 flex items-center justify-center cursor-pointer">
                             <span >{{ nsCurrency( 1000 ) }}</span>
                         </div>
                     </div>
@@ -94,20 +94,18 @@ export default {
             const payments  =   this.order.payments;
 
             if ( value <= 0 ) {
-                return nsSnackBar.error( __( 'Please provide a valid payment amount.' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'Please provide a valid payment amount.' ) );
             }
 
             if ( payments.filter( p => p.identifier === 'account-payment' ).length > 0 ) {
-                return nsSnackBar.error( __( 'The customer account can only be used once per order. Consider deleting the previously used payment.' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'The customer account can only be used once per order. Consider deleting the previously used payment.' ) );
             }
 
             if ( value > this.order.customer.account_amount ) {
                 return nsSnackBar.error( __( 'Not enough funds to add {amount} as a payment. Available balance {balance}.' )
                     .replace( '{amount}', nsCurrency( value ) ) 
                     .replace( '{balance}', nsCurrency( this.order.customer.account_amount ) ) 
-                ).subscribe();
+                );
             }
 
             POS.addPayment({
@@ -126,8 +124,7 @@ export default {
             const payments  =   this.order.payments;
 
             if ( payments.filter( p => p.identifier === 'account-payment' ).length > 0 ) {
-                return nsSnackBar.error( __( 'The customer account can only be used once per order. Consider deleting the previously used payment.' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'The customer account can only be used once per order. Consider deleting the previously used payment.' ) );
             }
 
             this.proceedAddingPayment( this.order.total );

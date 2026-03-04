@@ -67,7 +67,7 @@ export class Popup {
 
         const body                          =   document.querySelector( 'body' ).querySelectorAll( 'div' )[0];
         this.parentWrapper.style.filter     =   'blur(4px)';
-        body.style.filter                   =   'blur(6px)';
+        body.style.filter                   =   'grayscale(1) blur(1px)';
         
         let popups              =   [];
         const currentState      =   <{ popups: {}[]}>nsState.state.getValue();
@@ -86,12 +86,18 @@ export class Popup {
             component.props     =   [];
         }
 
-        if ( component.props !== undefined ) {
+        // components.props must be an array
+        if ( component.props !== undefined && Array.isArray( component.props ) ) {
             props     =   Object.keys( params ).filter( param => component.props.includes( param ) ).reduce( ( props, param ) => {
                 props[ param ]  =   params[ param ];
                 return props;
             }, {});
-        }
+        } else if ( component.props !== undefined && typeof component.props === 'object' ) {
+            props     =   Object.keys( params ).filter( param => Object.keys( component.props ).includes( param ) ).reduce( ( props, param ) => {
+                props[ param ]  =   params[ param ];
+                return props;
+            }, {});
+        } 
         
         const popup     =   {
             hash: `popup-${this.hash()}-${this.hash()}`,

@@ -11,6 +11,8 @@ namespace App\Http\Controllers;
 use App\Classes\Hook;
 use App\Classes\JsonResponse;
 use App\Events\AfterSuccessfulLoginEvent;
+use App\Events\BeforeSignInEvent;
+use App\Events\BeforeSignUpEvent;
 use App\Events\PasswordAfterRecoveredEvent;
 use App\Events\UserAfterActivationSuccessfulEvent;
 use App\Exceptions\NotAllowedException;
@@ -38,14 +40,14 @@ class AuthController extends Controller
     public function signIn()
     {
         return view( Hook::filter( 'ns-views:pages.sign-in', 'pages.auth.sign-in' ), [
-            'title' => __( 'Sign In &mdash; NexoPOS' ),
+            'title' => __( 'Sign In — NexoPOS' ),
         ] );
     }
 
     public function signUp()
     {
         return view( Hook::filter( 'ns-views:pages.sign-up', 'pages.auth.sign-up' ), [
-            'title' => __( 'Sign Up &mdash; NexoPOS' ),
+            'title' => __( 'Sign Up — NexoPOS' ),
         ] );
     }
 
@@ -86,7 +88,7 @@ class AuthController extends Controller
          */
         UserAfterActivationSuccessfulEvent::dispatch( $user );
 
-        return redirect( ns()->route( 'ns.login' ) )->with( 'message', __( 'Your account is now activate.' ) );
+        return redirect( ns()->route( 'ns.login' ) )->with( 'message', __( 'Your account is now activated.' ) );
     }
 
     public function passwordLost()
@@ -138,7 +140,7 @@ class AuthController extends Controller
 
     public function postSignIn( SignInRequest $request )
     {
-        Hook::action( 'ns-login-form', $request );
+        BeforeSignInEvent::dispatch( $request );
 
         $attempt = Auth::attempt( [
             'username' => $request->input( 'username' ),
@@ -189,7 +191,7 @@ class AuthController extends Controller
             throw new NotAllowedException( __( 'Unable to login, the provided account is not active.' ) );
         }
 
-        $intended = redirect()->intended()->getTargetUrl();
+        $intended = $request->session()->get( 'redirect', url( '/' ) );
 
         event( new AfterSuccessfulLoginEvent( Auth::user() ) );
 
@@ -197,8 +199,7 @@ class AuthController extends Controller
             message: __( 'You have been successfully connected.' ),
             data: [
                 'redirectTo' => Hook::filter( 'ns-login-redirect',
-                    ( $intended ) === url( '/' ) ? ns()->route( 'ns.dashboard.home' ) : $intended,
-                    redirect()->intended()->getTargetUrl() ? true : false
+                    ( $intended ) === url( '/' ) ? ns()->route( 'ns.dashboard.home' ) : $intended
                 ),
             ]
         );
@@ -235,7 +236,7 @@ class AuthController extends Controller
      */
     public function postSignUp( SignUpRequest $request )
     {
-        Hook::action( 'ns-register-form', $request );
+        BeforeSignUpEvent::dispatch( $request );
 
         try {
             $response = $this->userService->setUser( $request->only( [

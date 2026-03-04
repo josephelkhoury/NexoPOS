@@ -1,5 +1,5 @@
 <template>
-    <div class="shadow-lg ns-box w-95vw md:w-3/6-screen lg:w-2/6-screen">
+    <div class="shadow-lg ns-box w-95vw md:w-[50vw] lg:w-[33.33vw]">
         <div class="border-b ns-box-header p-2 flex justify-between items-center">
             <h3 class="font-bold">{{ __( 'Load Coupon' ) }}</h3>
             <div>
@@ -13,7 +13,7 @@
                     padding="p-2"
                     identifier="apply-coupon">
                     <div class="border-2 input-group info rounded flex">
-                        <input ref="coupon" @keyup.enter="loadCoupon()" v-model="couponCode" type="text" class="coupon-field w-full text-primary p-2 outline-none" :placeholder="placeHolder">
+                        <input ref="coupon" @keyup.enter="loadCoupon()" v-model="couponCode" type="text" class="coupon-field w-full text-fontcolor p-2 outline-hidden" :placeholder="placeHolder">
                         <button @click="loadCoupon()" class="px-3 py-2">{{ __( 'Load' ) }}</button>
                     </div>
                     <div class="pt-2">
@@ -22,7 +22,7 @@
                         </ns-notice>
                     </div>
                     <div class="pt-2 flex" v-if="order && order.customer_id === undefined">
-                        <button @click="selectCustomer()"  class="w-full border p-2 outline-none ns-numpad-key info cursor-pointer text-center">{{ __( 'Click here to choose a customer.' ) }}</button>
+                        <button @click="selectCustomer()"  class="w-full border p-2 outline-hidden ns-numpad-key info cursor-pointer text-center">{{ __( 'Click here to choose a customer.' ) }}</button>
                     </div>
                     <div class="pt-2" v-if="order && order.customer_id !== undefined">
                         <ns-notice color="success">
@@ -80,7 +80,7 @@
                     <ul v-if="order">
                         <li v-for="( coupon, index) of order.coupons" :key="index" class="flex justify-between elevation-surface border items-center px-2 py-1">
                             <div class="flex-auto">
-                                <h3 class="font-semibold text-primary p-2 flex justify-between">
+                                <h3 class="font-semibold text-fontcolor p-2 flex justify-between">
                                     <span>{{ coupon.name }}</span>
                                     <span>{{ getDiscountValue( coupon ) }}</span>
                                 </h3>
@@ -189,8 +189,7 @@ export default {
                     ! ns.date.moment.isAfter( this.coupon.valid_hours_start ) && 
                     this.coupon.valid_hours_start.length > 0
                 ) {
-                    return nsSnackBar.error( __( 'The coupon is out from validity date range.' ) )
-                        .subscribe();
+                    return nsSnackBar.error( __( 'The coupon is out from validity date range.' ) );
                 }
 
                 if ( 
@@ -198,8 +197,7 @@ export default {
                     ! ns.date.moment.isBefore( this.coupon.valid_hours_end ) &&
                     this.coupon.valid_hours_end.length > 0 
                 ) {
-                    return nsSnackBar.error( __( 'The coupon is out from validity date range.' ) )
-                        .subscribe();
+                    return nsSnackBar.error( __( 'The coupon is out from validity date range.' ) );
                 }
 
                 const requiredProducts      =   this.coupon.products;
@@ -209,8 +207,7 @@ export default {
                 ) {
                     const productIds    =   requiredProducts.map( p => p.product_id );
                     if ( this.order.products.filter( p => productIds.includes( p.product_id ) ).length === 0 ) {
-                        return nsSnackBar.error( __( 'This coupon requires products that aren\'t available on the cart at the moment.' ) )
-                            .subscribe();
+                        return nsSnackBar.error( __( 'This coupon requires products that aren\'t available on the cart at the moment.' ) );
                     }
                 }
 
@@ -221,8 +218,7 @@ export default {
                 ) {
                     const categoriesIds    =   requiredCategories.map( p => p.category_id );
                     if ( this.order.products.filter( p => categoriesIds.includes( p.$original().category_id ) ).length === 0 ) {
-                        return nsSnackBar.error( __( 'This coupon requires products that belongs to specific categories that aren\'t included at the moment.' ).replace( '%s', ) )
-                            .subscribe();
+                        return nsSnackBar.error( __( 'This coupon requires products that belongs to specific categories that aren\'t included at the moment.' ).replace( '%s', ) );
                     }
                 }
 
@@ -250,8 +246,7 @@ export default {
                     this.popupResolver( finalCoupon );
                 }, 500 );
 
-                nsSnackBar.success( __( 'The coupon has applied to the cart.' ) )
-                    .subscribe();
+                nsSnackBar.success( __( 'The coupon has applied to the cart.' ) );
 
             } catch( exception ) {
                 // unable to push the coupon
@@ -308,10 +303,10 @@ export default {
                 .subscribe({
                     next: coupon => {
                         this.coupon     =   coupon;
-                        nsSnackBar.success( __( 'The coupon has been loaded.' ) ).subscribe()
+                        nsSnackBar.success( __( 'The coupon has been loaded.' ) )
                     },
                     error : error => {
-                        nsSnackBar.error( error.message || __( 'An unexpected error occurred.' ) ).subscribe()
+                        nsSnackBar.error( error.message || __( 'An unexpected error occurred.' ) )
                     }
                 });
         }

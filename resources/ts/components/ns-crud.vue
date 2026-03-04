@@ -1,15 +1,15 @@
 <template>
     <div id="crud-table" class="w-full rounded-lg" :class="mode !== 'light' ? 'shadow mb-8': ''">
-        <div id="crud-table-header" class="p-2 border-b flex flex-col md:flex-row justify-between flex-wrap" v-if="mode !== 'light'">
+        <div id="crud-table-header" class="p-2 flex flex-col md:flex-row justify-between flex-wrap" v-if="mode !== 'light'">
             <div id="crud-search-box" class="w-full md:w-auto -mx-2 mb-2 md:mb-0 flex">
                 <div v-if="createUrl" class="px-2 flex items-center justify-center">
-                    <a :href="createUrl || '#'" class="rounded-full ns-crud-button text-sm h-10 flex items-center justify-center cursor-pointer px-3 outline-none border"><i class="las la-plus"></i></a>
+                    <a :href="createUrl || '#'" class="rounded-full ns-crud-button text-sm h-10 flex items-center justify-center cursor-pointer px-3 outline-hidden border"><i class="las la-plus"></i></a>
                 </div>
                 <div class="px-2">
                     <div class="rounded-full p-1 ns-crud-input flex">
-                        <input @keypress.enter="search()" v-model="searchInput" type="text" class="w-36 md:w-auto bg-transparent outline-none px-2">
-                        <button @click="search()" class="rounded-full w-8 h-8 outline-none ns-crud-input-button"><i class="las la-search"></i></button>
-                        <button v-if="searchQuery" @click="cancelSearch()" class="ml-1 rounded-full w-8 h-8 bg-error-secondary outline-none hover:bg-error-tertiary"><i class="las la-times text-white"></i></button>
+                        <input @keypress.enter="search()" v-model="searchInput" type="text" class="w-36 md:w-auto bg-transparent outline-hidden px-2">
+                        <button @click="search()" class="rounded-full w-8 h-8 outline-hidden ns-crud-input-button"><i class="las la-search"></i></button>
+                        <button v-if="searchQuery" @click="cancelSearch()" class="ml-1 rounded-full w-8 h-8 outline-hidden ns-crud-input-button error"><i class="las la-times"></i></button>
                     </div>
                 </div>
                 <div class="px-2 flex items-center justify-center">
@@ -17,13 +17,13 @@
                     text-sm
                     h-10
                     px-3
-                    outline-none
+                    outline-hidden
                     border
                     ns-crud-button
                     "><i :class="isRefreshing ? 'animate-spin' : ''" class="las la-sync"></i> </button>
                 </div>
                 <div class="px-2 flex items-center" v-if="showQueryFilters">
-                    <button @click="openQueryFilter()" :class="withFilters ? 'table-filters-enabled' : 'table-filters-disabled'" class="ns-crud-button border rounded-full text-sm h-10 px-3 outline-none ">
+                    <button @click="openQueryFilter()" :class="withFilters ? 'table-filters-enabled' : 'table-filters-disabled'" class="ns-crud-button border rounded-full text-sm h-10 px-3 outline-hidden ">
                         <i v-if="! withFilters" class="las la-filter"></i>
                         <i v-if="withFilters" class="las la-check"></i>
                         <span class="ml-1" v-if="! withFilters">{{ __( 'Filters' ) }}</span>
@@ -31,34 +31,34 @@
                     </button>
                 </div>
                 <div id="custom-buttons" v-if="headerButtonsComponents.length > 0">
-                    <component @refresh="refresh()" :result="result" :is="component" :key="index" v-for="(component, index) of headerButtonsComponents"/>
+                    <component @update="handleHeaderButtonUpdate( $event )" :config="crudConfig" @refresh="refresh()" :selectedSubject="selectedEntriesSubject" :result="result" :is="component" :key="index" v-for="(component, index) of headerButtonsComponents"/>
                 </div>
             </div>
             <div id="crud-buttons" class="-mx-1 flex flex-wrap w-full md:w-auto">
-                <div class="px-1 flex items-center" v-if="selectedEntries.length > 0">
-                    <button @click="clearSelectedEntries()" class="flex justify-center items-center rounded-full text-sm h-10 px-3 outline-none ns-crud-button border">
+                <div class="px-1 flex items-center" v-if="selectedEntries.length > 0  && showSelectedEntries">
+                    <button @click="clearSelectedEntries()" class="flex justify-center items-center rounded-full text-sm h-10 px-3 outline-hidden ns-crud-button border">
                         <i class="lar la-check-square"></i> {{ __( '{entries} entries selected' ).replace( '{entries}', selectedEntries.length ) }}
                     </button>
                 </div>
                 <div class="px-1 flex items-center">
-                    <button @click="downloadContent()" class="flex justify-center items-center rounded-full text-sm h-10 px-3 ns-crud-button border outline-none"><i class="las la-download"></i> {{ __( 'Download' ) }}</button>
+                    <button @click="downloadContent()" class="flex justify-center items-center rounded-full text-sm h-10 px-3 ns-crud-button border outline-hidden"><i class="las la-download"></i> {{ __( 'Download' ) }}</button>
                 </div>
             </div>
         </div>
-        <div class="flex p-2">
+        <div id="crud-table-body" class="flex">
             <div class="overflow-x-auto flex-auto">
                 <table class="table ns-table w-full" v-if="Object.values( columns ).length > 0">
                     <thead>
                         <tr>
-                            <th v-if="showCheckboxes" class="text-center px-2 border w-16 py-2">
-                                <ns-checkbox :checked="globallyChecked" @change="handleGlobalChange( $event )"></ns-checkbox>
+                            <th v-if="showCheckboxes" class="text-center p-1 border w-16 align-middle">
+                                <ns-checkbox class="inline-block" :checked="globallyChecked" @change="handleGlobalChange( $event )"></ns-checkbox>
                             </th>
-                            <th v-if="prependOptions && showOptions" class="text-left px-2 py-2 w-16 border"></th>
+                            <th v-if="prependOptions && showOptions" class="text-left p-1 w-16 border"></th>
                             <th :key="identifier" @click="sort( identifier )" v-for="(column, identifier) of columns" :style="{ 
                                 'width' : column.width || 'auto', 
                                 'max-width': column.maxWidth || 'auto', 
                                 'min-width': column.minWidth || 'auto' 
-                            }" class="cursor-pointer justify-betweenw-40 border text-left px-2 py-2">
+                            }" class="cursor-pointer justify-between border text-left p-1">
                                 <div class="w-full flex justify-between items-center">
                                     <span class="flex">{{ column.label }}</span>
                                     <span class="h-6 w-6 flex justify-center items-center">
@@ -67,7 +67,7 @@
                                     </span>
                                 </div>
                             </th>
-                            <th v-if="!prependOptions && showOptions" class="text-left px-2 py-2 w-16 border"></th>
+                            <th v-if="!prependOptions && showOptions" class="text-left p-1 w-16 border"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -91,23 +91,23 @@
                 </table>
             </div>
         </div>
-        <div class="p-2 flex border-t flex-col md:flex-row justify-between footer">
+        <div class="p-2 flex flex-col md:flex-row justify-between footer">
             <div v-if="bulkActions.length > 0" id="grouped-actions" class="mb-2 md:mb-0 flex justify-between rounded-full ns-crud-input p-1">
-                <select class="outline-none bg-transparent" v-model="bulkAction" id="grouped-actions">
+                <select class="outline-hidden bg-transparent" v-model="bulkAction" id="grouped-actions">
                     <option class="bg-input-disabled" selected value=""><slot name="bulk-label">{{ __( 'Bulk Actions' ) }}</slot></option>
                     <option class="bg-input-disabled" :key="index" v-for="(action, index) of bulkActions" :value="action.identifier">{{ action.label }}</option>
                 </select>
-                <button @click="bulkDo()" class="ns-crud-input-button h-8 px-3 outline-none rounded-full flex items-center justify-center"><slot name="bulk-go">{{ __( 'Apply' ) }}</slot></button>
+                <button @click="bulkDo()" class="ns-crud-input-button h-8 px-3 text-sm outline-hidden rounded-full flex items-center justify-center"><slot name="bulk-go">{{ __( 'Apply' ) }}</slot></button>
             </div>
             <div class="flex">
-                <div class="items-center flex text-primary mx-4">{{ resultInfo }}</div>
+                <div class="items-center flex text-fontcolor mx-4 text-sm">{{ resultInfo }}</div>
                 <div id="pagination" class="flex items-center -mx-1">
                     <template v-if="result.current_page">
                         <a href="javascript:void(0)" @click="page=result.first_page;refresh()" class="mx-1 flex items-center justify-center h-8 w-8 rounded-full ns-crud-button border shadow">
                             <i class="las la-angle-double-left"></i>
                         </a>
                         <template v-for="(_paginationPage, index) of pagination">
-                            <a :key="index" v-if="page !== '...'" :class="page == _paginationPage ? 'bg-info-tertiary border-transparent text-white' : ''" @click="page=_paginationPage;refresh()" href="javascript:void(0)" class="mx-1 flex items-center justify-center h-8 w-8 rounded-full ns-crud-button border">{{ _paginationPage }}</a>
+                            <a :key="index" v-if="page !== '...'" :class="page == _paginationPage ? 'active' : ''" @click="page=_paginationPage;refresh()" href="javascript:void(0)" class="mx-1 flex items-center justify-center h-8 w-8 rounded-full ns-crud-button border">{{ _paginationPage }}</a>
                             <a :key="index" v-if="page === '...'" href="javascript:void(0)" class="mx-1 flex items-center justify-center h-8 w-8 rounded-full ns-crud-button border">...</a>
                         </template>
                         <a href="javascript:void(0)" @click="page=result.last_page;refresh()" class="mx-1 flex items-center justify-center h-8 w-8 rounded-full ns-crud-button border shadow">
@@ -130,7 +130,7 @@ import nsOrdersFilterPopupVue from '~/popups/ns-orders-filter-popup.vue';
 import { defineAsyncComponent } from 'vue';
 
 declare const nsCrudHandler;
-declare const nsExtraComponents;
+declare const nsComponents;
 
 export default {
     data: () => {
@@ -149,9 +149,12 @@ export default {
             queryFilters:[],
             headerButtons: [],
             withFilters: false,
+            selectedEntriesSubject: new RxJS.BehaviorSubject([]),
             columns: [],
             selectedEntries:[],
             globallyChecked: false,
+            showSelectedEntries: true,
+            crudConfig: {},
             result: {
                 current_page: null,
                 data: [],
@@ -175,6 +178,28 @@ export default {
         }
 
         this.loadConfig();
+    },
+    watch: {
+        selectedEntries: {
+            deep: true, 
+            handler( entries ) {
+                this.selectedEntriesSubject.next( entries );
+
+                // the selectedEntries can now be updated by external components.
+                // when it's the case, entries that are visually selected remain selected event if the 
+                // selectedEntrie is an empty array. We need to make sure that the entries are
+                // aligned with the selectedEntries.
+                this.result.data.forEach( row => {
+                    const selected  =   entries.filter( e => e.$id === row.$id ).length > 0;
+
+                    if( selected ) {
+                        row.$checked  =   true;
+                    } else {
+                        row.$checked  =   false;
+                    }
+                });
+            }
+        }
     },
     props: [ 'src', 'createUrl', 'mode', 'identifier', 'queryParams', 'popup' ],
     computed: {
@@ -220,11 +245,11 @@ export default {
             return this.headerButtons.map( buttonComponent => {
                 return defineAsyncComponent( () => {
                     return new Promise( ( resolve ) => {
-                        resolve( nsExtraComponents[ buttonComponent ] );
+                        resolve( nsComponents[ buttonComponent ] );
                     })
                 })
             });
-        }
+        },
     },
     methods: {
         __,
@@ -258,17 +283,36 @@ export default {
             return result.filter( f => f > 0 || typeof f === 'string' );
         },
 
+        // We'll allow external components to change this component state. We'll circumscribe the state that can be changed.
+        // the $event consist of a object where the key is the property and the value is the new value.
+        handleHeaderButtonUpdate( $event ) {
+            for ( let key in $event ) {
+                if ([
+                    'selectedEntries',
+                    'page',
+                    'bulkAction',
+                    'searchInput',
+                    'globallyChecked',
+                    'sortColumn',
+                    'searchQuery',
+                    'queryFiltersString',
+                    'withFilters',
+                    'bulkActions',
+                ].includes( key )) {
+                    this[ key ]  =   $event[ key ];
+                }
+            }
+        },
+
         downloadContent() {
             nsHttpClient.post( `${this.src}/export?${this.getParsedSrc}`, { entries : this.selectedEntries.map( e => e.$id ) })
                 .subscribe( (result: any) => {
                     setTimeout( () => document.location   =   result.url, 300 );
                     nsSnackBar
-                        .success( __( 'The document has been generated.' ) )
-                        .subscribe()
+                        .success( __( 'The document has been generated.' ) );
                 }, error => {
                     nsSnackBar
-                        .error( error.message || __( 'Unexpected error occurred.' ) )
-                        .subscribe();
+                        .error( error.message || __( 'Unexpected error occurred.' ) );
                 })
         },
 
@@ -325,16 +369,18 @@ export default {
         loadConfig() {
             const request   =   nsHttpClient.get( `${this.src}/config?${this.getQueryParams()}` );
             request.subscribe( (f:any) => {
-                this.columns        =   f.columns;
-                this.bulkActions    =   f.bulkActions;
-                this.queryFilters   =   f.queryFilters;
-                this.prependOptions =   f.prependOptions;
-                this.showOptions    =   f.showOptions;
-                this.showCheckboxes =   f.showCheckboxes;
-                this.headerButtons  =   f.headerButtons || [];
+                this.crudConfig             =   f;
+                this.columns                =   f.columns;
+                this.bulkActions            =   f.bulkActions;
+                this.queryFilters           =   f.queryFilters;
+                this.prependOptions         =   f.prependOptions;
+                this.showOptions            =   f.showOptions;
+                this.showCheckboxes         =   f.showCheckboxes;
+                this.headerButtons          =   f.headerButtons || [];
+                this.showSelectedEntries    =   f.showSelectedEntries;
                 this.refresh();
             }, ( error ) => {
-                nsSnackBar.error( error.message, 'OK', { duration: false }).subscribe();
+                nsSnackBar.error( error.message, 'OK', { duration: false });
             });
         },
         cancelSearch() {
@@ -354,7 +400,7 @@ export default {
         },
         sort( identifier ) {
             if ( this.columns[ identifier ].$sort === false ) {
-                return nsSnackBar.error( __( 'Sorting is explicitely disabled on this column' ) ).subscribe();
+                return nsSnackBar.error( __( 'Sorting is explicitely disabled on this column' ) );
             }
 
             for ( let key in this.columns ) {
@@ -397,23 +443,20 @@ export default {
                             entries: this.selectedEntries.map( r => r.$id )
                         }).subscribe({
                             next: (result: HttpStatusResponse ) => {
-                                nsSnackBar.info( result.message ).subscribe();
+                                nsSnackBar.info( result.message );
                                 this.selectedEntries    =   [];
                                 this.refresh();
                             },
                             error: ( error ) => {
-                                nsSnackBar.error( error.message )
-                                    .subscribe();
+                                nsSnackBar.error( error.message );
                             }
                         })
                     }
                 } else {
-                    return nsSnackBar.error( __( 'No selection has been made.' ) )
-                        .subscribe();
+                    return nsSnackBar.error( __( 'No selection has been made.' ) );
                 }
             } else {
-                return nsSnackBar.error( __( 'No action has been selected.' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'No action has been selected.' ) );
             }
 
         },
@@ -466,7 +509,7 @@ export default {
                 this.page       =   f.current_page;
             }, ( error ) => {
                 this.isRefreshing   =   false;
-                nsSnackBar.error( error.message ).subscribe();
+                nsSnackBar.error( error.message );
             });
         }
     },

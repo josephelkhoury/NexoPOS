@@ -41,7 +41,7 @@
                 </div>
             </div>
             <div v-if="order.payment_status === 'paid'" class="flex items-center justify-center h-full">
-                <h3 class="text-primary font-semibold">{{ __( 'No payment possible for paid order.' ) }}</h3>
+                <h3 class="text-fontcolor font-semibold">{{ __( 'No payment possible for paid order.' ) }}</h3>
             </div>
         </div>
         <div class="px-2 w-full mb-4 md:w-1/2">
@@ -117,11 +117,11 @@ export default {
             this.validation.validateFields( this.fields );
 
             if ( ! this.validation.fieldsValid( this.fields ) ) {
-                return nsSnackBar.error( __( 'Unable to proceed the form is not valid' ) ).subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed the form is not valid' ) );
             }
 
             if ( parseFloat( value ) == 0 ) {
-                return nsSnackBar.error( __( 'Please provide a valid value' ) ).subscribe();
+                return nsSnackBar.error( __( 'Please provide a valid value' ) );
             }
         
             value   =   parseFloat( value );
@@ -138,10 +138,10 @@ export default {
                     if ( action ) {
                         nsHttpClient.post( `/api/orders/${this.order.id}/payments`, form )
                             .subscribe( result => {
-                                nsSnackBar.success( result.message ).subscribe();
+                                nsSnackBar.success( result.message );
                                 this.$emit( 'changed' );
                             }, error => {
-                                nsSnackBar.error( error.message ).subscribe();
+                                nsSnackBar.error( error.message );
                             })
                     }
                 }

@@ -1,8 +1,6 @@
 <?php
 
 use App\Services\Options;
-use App\Classes\Output;
-use App\Classes\Hook;
 use Illuminate\Support\Facades\Cookie;
 
 $options            =   app()->make( Options::class );
@@ -28,9 +26,5 @@ ns.authentication   =   <?php echo json_encode( $authentication );?>;
 ns.base_url         =   '{{ url( "/" ) }}';
 </script>
 @vite([ 'resources/ts/bootstrap.ts' ])
-<?php 
-    $output     =   new Output;
-    Hook::action( 'ns-footer', $output );
-    echo ( string ) $output;
-?>
-@yield( 'layout.dashboard.footer.inject' )
+@yield( 'layout.base.footer.inject' )
+@include( 'layout._footer-injection' )

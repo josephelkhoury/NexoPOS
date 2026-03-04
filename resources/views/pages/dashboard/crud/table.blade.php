@@ -1,6 +1,6 @@
 <?php
-use App\Classes\Hook;
 use App\Classes\Output;
+use App\Events\RenderCrudTableFooterEvent;
 ?>
 @extends( 'layout.dashboard' )
 
@@ -22,13 +22,17 @@ use App\Classes\Output;
 @section( 'layout.dashboard.footer' )
     @parent
 <?php
-$identifier    =   collect( explode( '/', $src ) )
-    ->filter( fn( $segment ) => ! empty( $segment ) )
-    ->last();
-
 $output     =   new Output;
-Hook::action( 'ns-crud-footer', $output, $identifier );
-Hook::action( $instance::method( 'getTableFooter' ), $instance->getTableFooter( $output ), $instance );
+
+/**
+ * We might actually check if the instance has a "getTableFooter" methods
+ * If it's the case, we might additionnally call that method.
+ */
+if ( method_exists( $instance, 'getTableFooter' ) ) {
+    $instance->getTableFooter( $output );
+}
+
+RenderCrudTableFooterEvent::dispatch( $output, $instance );
+echo $output;
 ?>
-{!! ( string ) $output !!}
 @endsection

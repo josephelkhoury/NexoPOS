@@ -9,7 +9,7 @@
             </div>
             <div class="px-2">
                 <div class="ns-button">
-                    <button @click="loadReport()" class="rounded flex justify-between shadow py-1 items-center text-primary px-2">
+                    <button @click="loadReport()" class="rounded flex justify-between shadow py-1 items-center text-fontcolor px-2">
                         <i class="las la-sync-alt text-xl"></i>
                         <span class="pl-2">{{ __( 'Load' ) }}</span>
                     </button>
@@ -17,7 +17,7 @@
             </div>
             <div class="px-2">
                 <div class="ns-button">
-                    <button @click="printSaleReport()" class="rounded flex justify-between shadow py-1 items-center text-primary px-2">
+                    <button @click="printSaleReport()" class="rounded flex justify-between shadow py-1 items-center text-fontcolor px-2">
                         <i class="las la-print text-xl"></i>
                         <span class="pl-2">{{ __( 'Print' ) }}</span>
                     </button>
@@ -25,7 +25,7 @@
             </div>
             <div class="px-2">
                 <div class="ns-button">
-                    <button @click="selectCategories()" class="rounded flex justify-between shadow py-1 items-center text-primary px-2">
+                    <button @click="selectCategories()" class="rounded flex justify-between shadow py-1 items-center text-fontcolor px-2">
                         <i class="las la-filter text-xl"></i>
                         <span class="pl-2">{{ __( 'Categories' ) }}: {{ categoriesNames || __( 'All Categories' ) }}</span>
                     </button>
@@ -33,7 +33,7 @@
             </div>
             <div class="px-2">
                 <div class="ns-button">
-                    <button @click="selectUnits()" class="rounded flex justify-between shadow py-1 items-center text-primary px-2">
+                    <button @click="selectUnits()" class="rounded flex justify-between shadow py-1 items-center text-fontcolor px-2">
                         <i class="las la-filter text-xl"></i>
                         <span class="pl-2">{{ __( 'Units' ) }}: {{ unitsNames || __( 'All Units' ) }}</span>
                     </button>
@@ -43,7 +43,7 @@
         <div id="report-printable" class="anim-duration-500 fade-in-entrance">
             <div class="flex w-full">
                 <div class="my-4 flex justify-between w-full">
-                    <div class="text-secondary">
+                    <div class="text-fontcolor-soft">
                         <ul>
                             <li class="pb-1 border-b border-dashed">{{ __( 'Range : {date1} &mdash; {date2}' ).replace( '{date1}', startDateField.value ).replace( '{date2}', endDateField.value ) }}</li>
                             <li class="pb-1 border-b border-dashed">{{ __( 'Document : Sold Stock Report' ) }}</li>
@@ -175,7 +175,7 @@ export default {
                 this.categoryField.value    =   response.values;
                 this.loadReport();
             } catch( exception ) {
-                nsSnackBar.error( __( 'An error has occured while loading the categories' ) ).subscribe();
+                nsSnackBar.error( __( 'An error has occured while loading the categories' ) );
             }
         },
         async selectUnits() {
@@ -185,7 +185,7 @@ export default {
                 this.unitField.value    =   response.values;
                 this.loadReport();
             } catch( exception ) {
-                nsSnackBar.error( __( 'An error has occured while loading the units' ) ).subscribe();
+                nsSnackBar.error( __( 'An error has occured while loading the units' ) );
             }
         },
         printSaleReport() {
@@ -194,14 +194,14 @@ export default {
 
         loadReport() {
             if ( this.startDateField.value === null || this.endDateField.value ===null ) {
-                return nsSnackBar.error( __( 'Unable to proceed. Select a correct time range.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed. Select a correct time range.' ) );
             }
 
             const startMoment   =   moment( this.startDateField.value );
             const endMoment     =   moment( this.endDateField.value );
 
             if ( endMoment.isBefore( startMoment ) ) {
-                return nsSnackBar.error( __( 'Unable to proceed. The current time range is not valid.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed. The current time range is not valid.' ) );
             }
 
             nsHttpClient.post( '/api/reports/sold-stock-report', { 
@@ -214,7 +214,7 @@ export default {
                     this.products     =   products;
                 },
                 error: ( error ) => {
-                    nsSnackBar.error( error.message ).subscribe();
+                    nsSnackBar.error( error.message );
                 }
             });
         }

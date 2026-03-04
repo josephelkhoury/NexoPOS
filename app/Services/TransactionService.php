@@ -778,13 +778,6 @@ class TransactionService
 
         $operation = $accounts[ $account->category_identifier ][ $rule->action ];
 
-        if ( ! $account instanceof TransactionAccount || ! $offset instanceof TransactionAccount ) {
-            throw new NotFoundException( sprintf(
-                __( 'The account or the offset from the rule #%s is not found.' ),
-                $rule->id
-            ) );
-        }
-
         $transactionHistory->value = $procurement->cost;
         $transactionHistory->author = $procurement->author;
         $transactionHistory->transaction_account_id = $account->id;
@@ -807,7 +800,7 @@ class TransactionService
         $rule = TransactionActionRule::where( 'on', TransactionActionRule::RULE_ORDER_FROM_UNPAID_TO_PAID )->first();
 
         if ( ! $rule instanceof TransactionActionRule ) {
-            ns()->notification->create(
+            return ns()->notification->create(
                 title: __( 'Accounting Rule Misconfiguration' ),
                 identifier: 'accounting-unpaid-to-paid-order-misconfiguration',
                 url: ns()->route( 'ns.dashboard.transactions-rules' ),
@@ -822,7 +815,7 @@ class TransactionService
         $account = TransactionAccount::find( $rule->account_id );
 
         if ( ! $account instanceof TransactionAccount ) {
-            ns()->notification->create(
+            return ns()->notification->create(
                 title: __( 'Accounting Rule Misconfiguration' ),
                 identifier: 'accounting-unpaid-to-paid-order-misconfiguration',
                 url: ns()->route( 'ns.dashboard.transactions-rules' ),
@@ -854,7 +847,7 @@ class TransactionService
         $rule = TransactionActionRule::where( 'on', TransactionActionRule::RULE_ORDER_UNPAID_VOIDED )->first();
 
         if ( ! $rule instanceof TransactionActionRule ) {
-            ns()->notification->create(
+            return ns()->notification->create(
                 title: __( 'Accounting Rule Misconfiguration' ),
                 identifier: 'accounting-unpaid-to-void-order-misconfiguration',
                 url: ns()->route( 'ns.dashboard.transactions-rules' ),
@@ -869,7 +862,7 @@ class TransactionService
         $account = TransactionAccount::find( $rule->account_id );
 
         if ( ! $account instanceof TransactionAccount ) {
-            ns()->notification->create(
+            return ns()->notification->create(
                 title: __( 'Accounting Rule Misconfiguration' ),
                 identifier: 'accounting-unpaid-to-void-order-misconfiguration',
                 url: ns()->route( 'ns.dashboard.transactions-rules' ),
@@ -911,7 +904,7 @@ class TransactionService
         $rule = TransactionActionRule::where( 'on', TransactionActionRule::RULE_ORDER_PAID_VOIDED )->first();
 
         if ( ! $rule instanceof TransactionActionRule ) {
-            ns()->notification->create(
+            return ns()->notification->create(
                 title: __( 'Accounting Rule Misconfiguration' ),
                 identifier: 'accounting-paid-to-void-order-misconfiguration',
                 url: ns()->route( 'ns.dashboard.transactions-rules' ),
@@ -926,7 +919,7 @@ class TransactionService
         $account = TransactionAccount::find( $rule->account_id );
 
         if ( ! $account instanceof TransactionAccount ) {
-            ns()->notification->create(
+            return ns()->notification->create(
                 title: __( 'Accounting Rule Misconfiguration' ),
                 identifier: 'accounting-paid-to-void-order-misconfiguration',
                 url: ns()->route( 'ns.dashboard.transactions-rules' ),

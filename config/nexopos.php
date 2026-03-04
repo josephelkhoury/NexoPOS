@@ -9,7 +9,7 @@ return [
      * This is the core version of NexoPOS. This is used to displays on the
      * dashboard and to ensure a compatibility with the modules.
      */
-    'version' => '5.3.8',
+    'version' => '6.1.2',
 
     /**
      * --------------------------------------------------------------------
@@ -26,6 +26,7 @@ return [
         'fr' => 'Français',
         'es' => 'Espanol',
         'it' => 'Italian',
+        'id' => 'Indonesian',
         'ar' => 'Arabic',
         'pt' => 'Portuguese',
         'tr' => 'Türkçe',
@@ -57,6 +58,17 @@ return [
      * turn on the RTL dashboard.
      */
     'rtl-languages' => [ 'ar' ],
+
+    /**
+     * --------------------------------------------------------------------
+     *  Theme
+     * --------------------------------------------------------------------
+     */
+    'themes' => [
+        'dark' => 'Dark',
+        'light' => 'Light',
+        'phosphor' => 'Phosphor',
+    ],
 
     /**
      * --------------------------------------------------------------------

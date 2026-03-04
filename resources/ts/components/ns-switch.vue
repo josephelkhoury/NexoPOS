@@ -1,7 +1,18 @@
-<script>
+<script lang="ts">
+import { __ } from '~/libraries/lang'
 export default {
     data: () => {
         return {
+            sizeMapping: {
+                52: 'w-52',
+                64: 'w-64',
+                72: 'w-72',
+                80: 'w-80',
+                96: 'w-96',
+                128: 'w-128',
+                144: 'w-144',
+                160: 'w-160',
+            }
         }
     },
     name: 'ns-switch',
@@ -44,20 +55,20 @@ export default {
             this.$emit( 'change', option.value );
         }
     },
-    props: [ 'placeholder', 'leading', 'type', 'field' ],
+    props: [ 'placeholder', 'leading', 'type', 'field', 'size' ],
 }
 </script>
 <template>
-    <div class="mb-2 ns-switch">
-        <label :for="field.name" :class="hasError ? 'has-error' : 'is-pristine'" class="block leading-5 font-medium"><slot></slot></label>
-            <div class="rounded-lg flex w-52 overflow-hidden shadow my-1" :class="hasError ? 'has-error' : ''">
+    <div class="ns-switch" :class="(hasError ? 'has-error' : 'is-pristine') + ' ' + ( field.label ? 'mb-2' : '' )">
+        <label v-if="field.label" :for="field.name"  class="block leading-5 font-medium"><slot></slot></label>
+            <div :class="sizeMapping[ size ] || 'w-52'" class="rounded-lg flex overflow-hidden shadow my-1">
                 <button 
                     :disabled="option.disabled" 
                     :key="key"
                     v-for="(option, key) of _options" 
                     @click="setSelected( option )" 
                     :class="option.selected ? 'selected ' + sizeClass : 'unselected' + ' ' + inputClass + ' ' + sizeClass" 
-                    class="p-2 text-sm flex-no-wrap outline-none rounded-none">{{ option.label }}</button>
+                    class="p-2 text-sm flex-no-wrap outline-hidden rounded-none">{{ option.label }}</button>
             </div>
             <p v-if="! field.errors || field.errors.length === 0" class="text-xs ns-description"><slot name="description"></slot></p>
             <p v-for="(error, index) of field.errors" :key="index" class="text-xs ns-error">

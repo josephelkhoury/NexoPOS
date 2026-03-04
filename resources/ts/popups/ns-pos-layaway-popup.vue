@@ -1,5 +1,5 @@
 <template>
-    <div class="shadow-lg h-95vh md:h-5/6-screen lg:h-5/6-screen w-95vw md:w-4/6-screen lg:w-3/6-screen ns-box flex flex-col">
+    <div class="shadow-lg h-95vh md:h-[60vh] lg:h-[60vh] w-95vw md:w-[66.67vw] lg:w-[50vw] ns-box flex flex-col">
         <div class="p-2 border-b ns-box-header flex justify-between items-center">
             <h3 class="font-semibold">{{ __( 'Layaway Parameters' ) }}</h3>
             <div>
@@ -19,7 +19,7 @@
             </div>
             <div class="flex flex-col flex-auto overflow-hidden">
                 <div class="border-b ns-box-body">
-                    <h3 class="text-2xl flex justify-between py-2 text-primary">
+                    <h3 class="text-2xl flex justify-between py-2 text-font">
                         <span>{{ __( 'Instalments & Payments' ) }}</span>
                         <p>
                             <span class="text-sm">({{ nsCurrency( totalPayments ) }})</span>
@@ -43,13 +43,13 @@
                             </div>
                         </div>
                         <div class="flex items-center">
-                            <button @click="removeInstalment( instalment )" class="items-center flex justify-center h-8 w-8 rounded border text-primary ns-inset-button error">
+                            <button @click="removeInstalment( instalment )" class="items-center flex justify-center h-8 w-8 rounded border text-fontcolor ns-inset-button error">
                                 <i class="las la-times"></i>
                             </button>
                         </div>
                     </div>
                     <div class="my-2" v-if="order.instalments.length === 0">
-                        <p class="p-2 elevation-surface border text-primary text-center">{{ __( 'There is no instalment defined. Please set how many instalments are allowed for this order' ) }}</p>
+                        <p class="p-2 elevation-surface border text-fontcolor text-center">{{ __( 'There is no instalment defined. Please set how many instalments are allowed for this order' ) }}</p>
                     </div>
                 </div>
             </div>
@@ -244,13 +244,13 @@ export default {
         },
         updateOrder() {
             if ( this.order.instalments.length === 0 ) {
-                return nsSnackBar.error( __( 'Please provide instalments before proceeding.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Please provide instalments before proceeding.' ) );
             }
 
             this.fields.forEach( field => this.formValidation.validateField( field ) );
 
             if ( ! this.formValidation.fieldsValid( this.fields ) ) {
-                return nsSnackBar.error( __( 'Unable to process, the form is not valid' ) ).subscribe();
+                return nsSnackBar.error( __( 'Unable to process, the form is not valid' ) );
             }
 
             this.$forceUpdate();
@@ -267,15 +267,15 @@ export default {
                 .reduce( (before, after) => parseFloat( before ) + parseFloat( after ) ) );
 
             if ( instalments.filter( instalment => instalment.date === undefined || instalment.date === '' ).length > 0 ) {
-                return nsSnackBar.error( __( 'One or more instalments has an invalid date.' ) ).subscribe();
+                return nsSnackBar.error( __( 'One or more instalments has an invalid date.' ) );
             }
 
             if ( instalments.filter( instalment => ! ( instalment.amount > 0 ) ).length > 0 ) {
-                return nsSnackBar.error( __( 'One or more instalments has an invalid amount.' ) ).subscribe();
+                return nsSnackBar.error( __( 'One or more instalments has an invalid amount.' ) );
             }
 
             if ( instalments.filter( instalment => moment( instalment.date ).isBefore( ns.date.moment.startOf( 'day' ) ) ).length > 0 ) {
-                return nsSnackBar.error( __( 'One or more instalments has a date prior to the current date.' ) ).subscribe();
+                return nsSnackBar.error( __( 'One or more instalments has a date prior to the current date.' ) );
             }
 
             const instalmentsForToday   =   instalments.filter( instalment => moment( instalment.date ).isSame( ns.date.moment.startOf( 'day' ), 'day' ) );
@@ -287,11 +287,11 @@ export default {
             });
 
             if ( totalPaidToday < this.expectedPayment ) {
-                return nsSnackBar.error( __( 'The payment to be made today is less than what is expected.' ) ).subscribe();
+                return nsSnackBar.error( __( 'The payment to be made today is less than what is expected.' ) );
             }
 
             if ( totalInstalments < nsRawCurrency( this.order.total ) ) {
-                return nsSnackBar.error( __( 'Total instalments must be equal to the order total.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Total instalments must be equal to the order total.' ) );
             }
 
             instalments.sort( ( before, after ) => {

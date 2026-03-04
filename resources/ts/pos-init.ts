@@ -8,7 +8,7 @@ import { BehaviorSubject } from "rxjs";
 import { Customer } from "./interfaces/customer";
 import { OrderType } from "./interfaces/order-type";
 import { Order } from "./interfaces/order";
-import { nsHooks, nsHttpClient, nsNotice, nsSnackBar } from "./bootstrap";
+import { nsHttpClient, nsNotice, nsSnackBar } from "./bootstrap";
 import { PaymentType } from "./interfaces/payment-type";
 import { Payment } from "./interfaces/payment";
 import { Responsive } from "./libraries/responsive";
@@ -28,6 +28,7 @@ import nsPosLoadingPopupVue from "./popups/ns-pos-loading-popup.vue";
 import { nsAlertPopup, nsConfirmPopup, nsPromptPopup } from "./components/components";
 import nsPosShippingPopup from "./popups/ns-pos-shipping-popup.vue";
 import nsLayawayPopup from "./popups/ns-pos-layaway-popup.vue";
+import delivery from "./pages/dashboard/pos/queues/order-type/delivery";
 
 /**
  * these are dynamic component
@@ -51,9 +52,11 @@ const nsPosCashRegister         = (<any>window).nsPosCashRegister = defineAsyncC
 declare const systemOptions;
 declare const systemUrls;
 declare const nsEvent;
+declare const nsHooks;
 
 export class POS {
     private _cartButtons: BehaviorSubject<{ [key: string]: any }>;
+    private _cartHeaderButtons: BehaviorSubject<{ [key: string]: any }>;
     private _products: BehaviorSubject<OrderProduct[]>;
     private _breadcrumbs: BehaviorSubject<any[]>;
     private _customers: BehaviorSubject<Customer[]>;
@@ -188,6 +191,10 @@ export class POS {
         return this._cartButtons;
     }
 
+    get cartHeaderButtons() {
+        return this._cartHeaderButtons;
+    }
+
     async reset() {
         return new Promise(async (resolve, reject) => {
             try {
@@ -201,6 +208,7 @@ export class POS {
                 this._customers.next([]);
                 this._breadcrumbs.next([]);
                 this._cartButtons.next({});
+                this._cartHeaderButtons.next({});
                 this.defineCurrentScreen();
                 this.setHoldPopupEnabled(true);
 
@@ -233,20 +241,9 @@ export class POS {
         this._order = new BehaviorSubject<Order>(this.defaultOrder());
         this._selectedPaymentType = new BehaviorSubject<PaymentType>(null);
         this._cartButtons = new BehaviorSubject<{ [key: string]: any }>({})
+        this._cartHeaderButtons = new BehaviorSubject<{ [key: string]: any }>({});
         this._orderTypeProcessQueue = [
-            {
-                identifier: 'handle.delivery-order',
-                promise: (selectedType: OrderType) => new Promise<StatusResponse>((resolve, reject) => {
-                    if ( selectedType && selectedType.identifier === 'delivery') {
-                        return Popup.show(nsPosShippingPopup, { resolve, reject });
-                    }
-
-                    return resolve({
-                        status: 'success',
-                        message: 'Proceed'
-                    });
-                })
-            }
+            delivery,
         ];
 
         this.initialQueue.push(() => new Promise((resolve, reject) => {
@@ -309,6 +306,7 @@ export class POS {
                                     {
                                         actions: {
                                             readMore: {
+                                                className: 'info',
                                                 label: __( 'Read More' ),
                                                 onClick: ( instance ) => {
                                                     instance.close();
@@ -327,7 +325,7 @@ export class POS {
 
             return resolve({
                 status: 'success',
-                message: 'no default customer is selected.'
+                message: __( 'No default customer is selected.' )
             });
         }));
 
@@ -374,10 +372,15 @@ export class POS {
 
     public getSalePrice(item) {
         let price = 0;
-        if ( this.options.getValue().ns_pos_price_with_tax === 'yes' ) {
+
+        if ( this.options.getValue().ns_pos_vat === 'disabled' ) {
             price = nsRawCurrency( item.sale_price_with_tax );
         } else {
-            price = nsRawCurrency( item.sale_price_without_tax );
+            if ( this.options.getValue().ns_pos_price_with_tax === 'yes' ) {
+                price = nsRawCurrency( item.sale_price_with_tax );
+            } else {
+                price = nsRawCurrency( item.sale_price_without_tax );
+            }
         }
 
         return nsHooks.applyFilters( 'ns-pos-product-sale-price', price, item );
@@ -428,7 +431,7 @@ export class POS {
                     ]);
                 } catch (exception) {
                     reject( exception );
-                    nsSnackBar.error(exception.message).subscribe();
+                    nsSnackBar.error(exception.message);
                 }
             }
 
@@ -457,7 +460,6 @@ export class POS {
             if (_coupon.code === coupon.code) {
                 const message = __('This coupon is already added to the cart');
                 nsSnackBar.error(message)
-                    .subscribe();
                 throw message;
             }
         })
@@ -530,13 +532,13 @@ export class POS {
             return this.computePaid();
         }
 
-        return nsSnackBar.error('Invalid amount.').subscribe();
+        return nsSnackBar.error('Invalid amount.');
     }
 
     removePayment(payment: Payment) {
 
         if (payment.id !== undefined) {
-            return nsSnackBar.error( __( 'Unable to delete a payment attached to the order.' ) ).subscribe();
+            return nsSnackBar.error( __( 'Unable to delete a payment attached to the order.' ) );
         }
 
         const order = this._order.getValue();
@@ -671,8 +673,7 @@ export class POS {
         });
 
         if ( taxGroup.taxes.length === 0 ) {
-            nsSnackBar.error( __( 'The selected tax group doesn\'t have any assigned sub taxes. This might cause wrong figures.' ), __( 'Proceed' ), { duration: false })
-                .subscribe();
+            nsSnackBar.error( __( 'The selected tax group doesn\'t have any assigned sub taxes. This might cause wrong figures.' ), __( 'Proceed' ), { duration: false });
 
             return;
         }
@@ -712,7 +713,7 @@ export class POS {
         order.products = products;
         order.total_products = products.length;
 
-        if ([ 'products_vat' ].includes(posVat) || options.ns_pos_price_with_tax === 'no' ) {
+        if ([ 'products_vat' ].includes(posVat) ) {
             const totalTaxValue =  products.map((product: OrderProduct) => {
                 return product.total_tax_value;
             });
@@ -985,7 +986,7 @@ export class POS {
                         return resolve( quantities );
                     }
                 } catch( exception ) {
-                    return nsSnackBar.error( __( 'An error has occurred while computing the product.' ) ).subscribe();
+                    return nsSnackBar.error( __( 'An error has occurred while computing the product.' ) );
                 }
             }
             
@@ -1270,8 +1271,7 @@ export class POS {
                     .replace('%s', coupon.name),
                 __('Okay'), {
                 duration: 6000
-            }
-            ).subscribe();
+            });
 
             this.removeCoupon(coupon);
         });
@@ -1350,8 +1350,7 @@ export class POS {
          */
         if (order.discount > order.subtotal && order.total_coupons === 0) {
             order.discount = order.subtotal;
-            nsSnackBar.info( __( 'The discount has been set to the cart subtotal.' ))
-                .subscribe();
+            nsSnackBar.info( __( 'The discount has been set to the cart subtotal.' ));
         }
 
         /**
@@ -1371,7 +1370,7 @@ export class POS {
             order = response['data'].order;
         } catch (exception) {
             if (exception !== false && exception.message !== undefined) {
-                nsSnackBar.error(exception.message || __('An unexpected error has occurred while fecthing taxes.'), __('OKAY'), { duration: 0 }).subscribe();
+                nsSnackBar.error(exception.message || __('An unexpected error has occurred while fecthing taxes.'), __('OKAY'), { duration: 0 });
             }
         }
 
@@ -1549,6 +1548,7 @@ export class POS {
              * push the new product
              * at the front of the cart
              */
+            console.log( JSON.parse( JSON.stringify( cartProduct ) ) );
             products.unshift(cartProduct);
         }
 
@@ -1687,9 +1687,10 @@ export class POS {
         const originalProduct   =   product.$original();
         const taxGroup          =   originalProduct.tax_group;
 
-        let price_without_tax   =   this.getProductUnitPrice( product.mode, product.$quantities() );
+        let price_without_tax   =   price;
         let tax_value           =   0;
-        let price_with_tax      =   this.getProductUnitPrice( product.mode, product.$quantities() );
+        let price_with_tax      =   price;
+        let total_tax_value     =   0;
 
         if ( taxGroup !== undefined && taxGroup !== null && taxGroup.taxes !== undefined ) {
 
@@ -1704,21 +1705,40 @@ export class POS {
                     .reduce( ( b, a ) => b + a );
             }
 
-            switch( originalProduct.tax_type ) {
-                case 'inclusive':
-                    price_without_tax   =   this.getPriceWithoutTax( price, summarizedRates, originalProduct.tax_type );
-                    price_with_tax      =   price;
-                    tax_value           =   this.getVatValue( math.chain( price_with_tax ).multiply( product.quantity ).subtract( product.discount ).done(), summarizedRates, originalProduct.tax_type );
-                break;
-                case 'exclusive':
-                    price_without_tax   =   price;
-                    price_with_tax      =   this.getPriceWithTax( price, summarizedRates, originalProduct.tax_type );
-                    tax_value           =   this.getVatValue( math.chain( price_without_tax ).multiply( product.quantity ).subtract( product.discount ).done(), summarizedRates, originalProduct.tax_type );
-                break;
-            }
+            /**
+             * CORRECTED TAX CALCULATION:
+             * Calculate tax on the line total after discount, 
+             * then derive per-unit values for consistency
+             */
+            
+            // Calculate line subtotal (unit price × quantity)
+            const lineSubtotal = math.chain( price ).multiply( product.quantity ).done();
+            
+            // Calculate line total after discount
+            const lineAfterDiscount = math.chain( lineSubtotal ).subtract( product.discount ).done();
+            
+            // Compute tax on the discounted line total
+            let result = this.computeTaxForGroup( 
+                lineAfterDiscount, 
+                taxGroup, 
+                originalProduct.tax_type
+            );
+
+            // Store total tax value
+            total_tax_value = result.tax_value;
+            
+            // Derive per-unit values for consistency with existing system
+            tax_value = math.chain( total_tax_value ).divide( product.quantity ).done();
+            price_with_tax = math.chain( result.price_with_tax ).divide( product.quantity ).done();
+            price_without_tax = math.chain( result.price_without_tax ).divide( product.quantity ).done();
         }
-        
-        return { price_without_tax, tax_value, price_with_tax };
+
+        return { 
+            price_without_tax, 
+            tax_value,  // per-unit tax value
+            price_with_tax,
+            total_tax_value  // total tax value for the line
+        };
     }
 
     computeCustomProductTax( product: OrderProduct ) {
@@ -1728,6 +1748,10 @@ export class POS {
         quantities.custom_price_without_tax =   result.price_without_tax;
         quantities.custom_price_with_tax =   result.price_with_tax;
         quantities.custom_price_tax =   result.tax_value;
+
+        // Also set the total tax value on the product
+        product.tax_value = result.tax_value;
+        product.total_tax_value = result.total_tax_value;
 
         product.$quantities     =   () => {
             return <ProductUnitQuantity>quantities
@@ -1744,6 +1768,10 @@ export class POS {
         quantities.sale_price_with_tax      =   result.price_with_tax;
         quantities.sale_price_tax           =   result.tax_value;
 
+        // Also set the total tax value on the product
+        product.tax_value = result.tax_value;
+        product.total_tax_value = result.total_tax_value;
+
         product.$quantities     =   () => {
             return <ProductUnitQuantity>quantities
         }
@@ -1758,6 +1786,10 @@ export class POS {
         quantities.wholesale_price_without_tax  =   result.price_without_tax;
         quantities.wholesale_price_with_tax     =   result.price_with_tax;
         quantities.wholesale_price_tax          =   result.tax_value;
+
+        // Also set the total tax value on the product
+        product.tax_value = result.tax_value;
+        product.total_tax_value = result.total_tax_value;
 
         product.$quantities     =   () => {
             return <ProductUnitQuantity>quantities
@@ -1775,6 +1807,7 @@ export class POS {
     }
 
     computeProduct(product: OrderProduct) {
+        
         /**
          * determining what is the 
          * real sale price
@@ -1804,27 +1837,73 @@ export class POS {
         let unitPrice = nsHooks.applyFilters( 'ns-pos-product-unit-price', product.unit_price, product );
         
         product.total_price =   math.chain( unitPrice ).multiply( product.quantity ).subtract( product.discount ).done();
-        product.total_tax_value = math.chain( product.tax_value ).multiply( product.quantity ).done();
+        
+        // Ensure total_tax_value is set (fallback for old computation paths)
+        if ( product.total_tax_value === undefined ) {
+            product.total_tax_value = math.chain( product.tax_value ).multiply( product.quantity ).done();
+        }
+
+        // Also set total prices for consistency
+        if ( product.price_with_tax !== undefined && product.price_without_tax !== undefined ) {
+            product.total_price_with_tax = math.chain( product.price_with_tax ).multiply( product.quantity ).done();
+            product.total_price_without_tax = math.chain( product.price_without_tax ).multiply( product.quantity ).done();
+        }
 
         nsHooks.doAction('ns-after-product-computed', product);
     }
 
     computeProductTaxValue( product ) {  
         const tax_group = product.$original().tax_group;
-        const unitPrice = nsHooks.applyFilters( 'ns-pos-product-unit-price', product.unit_price, product );
+        let unitPrice;
 
-        let result    =   this.computeTaxForGroup( 
-            math.chain( unitPrice ).done(), 
+        /**
+         * If we're dealing the normal price. We need to make sure the price
+         * from which we'll compute the tax is always the price with tax.
+         */
+        if ( product.mode === 'normal' ) {
+            if ( product.tax_type === 'inclusive' ) {
+                unitPrice = nsHooks.applyFilters( 'ns-pos-product-unit-price', product.$quantities().sale_price_with_tax, product );
+            } else {
+                unitPrice = nsHooks.applyFilters( 'ns-pos-product-unit-price', product.$quantities().sale_price_without_tax, product );
+            }
+        } else if ( product.mode === 'wholesale' ) {
+            if ( product.tax_type === 'inclusive' ) {
+                unitPrice = nsHooks.applyFilters( 'ns-pos-product-unit-price', product.$quantities().wholesale_price_with_tax, product );
+            } else {
+                unitPrice = nsHooks.applyFilters( 'ns-pos-product-unit-price', product.$quantities().wholesale_price_without_tax, product );
+            }
+        } else {
+            unitPrice = nsHooks.applyFilters( 'ns-pos-product-unit-price', product.unit_price, product );
+        }
+        
+        /**
+         * CORRECTED TAX CALCULATION:
+         * Tax should be calculated on the line total after discount
+         * This is the standard real-world approach for tax computation
+         */
+        
+        // Calculate line subtotal (unit price × quantity)
+        const lineSubtotal = math.chain( unitPrice ).multiply( product.quantity ).done();
+        
+        // Calculate line total after discount
+        const lineAfterDiscount = math.chain( lineSubtotal ).subtract( product.discount ).done();
+        
+        // Compute tax on the discounted line total
+        let result = this.computeTaxForGroup( 
+            lineAfterDiscount, 
             tax_group, 
-            this.options.getValue().ns_pos_price_with_tax === 'yes' ? 'inclusive' : 'exclusive'
+            product.tax_type
         );
 
-        product.tax_value           =   result.tax_value;
-        product.total_tax_value     =   product.tax_value * product.quantity;
-        product.price_with_tax      =   result.price_with_tax;
-        product.price_without_tax   =   result.price_without_tax;
-        product.total_price_with_tax    =   math.chain( result.price_with_tax ).multiply( product.quantity ).subtract( product.discount ).done();
-        product.total_price_without_tax =   math.chain( result.price_without_tax ).multiply( product.quantity ).subtract( product.discount ).done();
+        // For tax calculated on line total, we need to derive per-unit values
+        product.tax_value = math.chain( result.tax_value ).divide( product.quantity ).done();
+        product.total_tax_value = result.tax_value;
+        product.price_with_tax = math.chain( result.price_with_tax ).divide( product.quantity ).done();
+        product.price_without_tax = math.chain( result.price_without_tax ).divide( product.quantity ).done();
+        
+        // Total prices are already correctly calculated since tax was computed on the final amount
+        product.total_price_with_tax = result.price_with_tax;
+        product.total_price_without_tax = result.price_without_tax;
     }
 
     computeTaxForGroup( price, tax_group, tax_type ) {
@@ -1832,6 +1911,17 @@ export class POS {
         let price_with_tax      =   0;
         let price_without_tax   =   0;
         let taxes               =   [];
+        
+        // Handle edge case where price is zero or negative after discount
+        if (price <= 0) {
+            return {
+                ...tax_group,
+                taxes: [],
+                tax_value: 0,
+                price_with_tax: 0,
+                price_without_tax: 0
+            };
+        }
         
         if ( tax_group ) {
             taxes     =   tax_group.taxes.map( tax => {
@@ -1847,6 +1937,10 @@ export class POS {
             tax_value           =   this.getVatValue( price, rate, tax_type );            
             price_without_tax   =   this.getPriceWithoutTax( price, rate, tax_type );
             price_with_tax      =   this.getPriceWithTax( price, rate, tax_type );
+        } else {
+            // No taxes defined, price remains unchanged
+            price_with_tax = price;
+            price_without_tax = price;
         }
 
         return {
@@ -1913,11 +2007,11 @@ export class POS {
                             nsHttpClient.delete(`/api/orders/${order.id}`)
                                 .subscribe({
                                     next: (result: any) => {
-                                        nsSnackBar.success(result.message).subscribe();
+                                        nsSnackBar.success(result.message);
                                         this.reset();
                                     },
                                     error: (error) => {
-                                        return nsSnackBar.error(error.message).subscribe();
+                                        return nsSnackBar.error(error.message);
                                     }
                                 });
                         }
@@ -1932,11 +2026,11 @@ export class POS {
                             nsHttpClient.post(`/api/orders/${order.id}/void`, { reason })
                                 .subscribe({
                                     next: (result: any) => {
-                                        nsSnackBar.success(result.message).subscribe();
+                                        nsSnackBar.success(result.message);
                                         this.reset();
                                     },
                                     error: (error) => {
-                                        return nsSnackBar.error(error.message).subscribe();
+                                        return nsSnackBar.error(error.message);
                                     }
                                 })
                         }
@@ -1944,14 +2038,32 @@ export class POS {
                 });
             }
         } else {
-            nsSnackBar.error( __( 'Unable to void an unpaid order.' )).subscribe();
+            nsSnackBar.error( __( 'Unable to void an unpaid order.' ));
         }
     }
 
     async triggerOrderTypeSelection(selectedType) {
+        const results    =   [];
+
         for (let i = 0; i < this.orderTypeQueue.length; i++) {
-            const result = await this.orderTypeQueue[i].promise(selectedType);
+            results.push( await this.orderTypeQueue[i].promise(selectedType) );
         }
+
+        /**
+         * Now that all queues has been resolved
+         * we can safely update the order object.
+         */
+        const order = this.order.getValue();
+
+        results.forEach( result => {
+            for( let key in result ) {
+                if ( result[key] !== undefined ) {
+                    order[key] = result[key];
+                }
+            }
+        });
+
+        this.order.next(order);
     }
 
     set(key, value) {

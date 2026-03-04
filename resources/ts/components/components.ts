@@ -10,7 +10,6 @@ import nsConfirmPopup       from  '~/popups/ns-pos-confirm-popup.vue';
 import nsCrud               from  './ns-crud.vue';
 import nsCrudForm           from  './ns-crud-form.vue';
 import nsDate               from  './ns-date.vue';
-import nsDateRangePicker    from  './ns-date-range-picker.vue';
 import nsDateTimePicker     from  './ns-date-time-picker.vue';
 import nsDatepicker         from  './ns-datepicker.vue';
 import nsDaterangePicker    from  './ns-daterange-picker.vue';
@@ -44,6 +43,7 @@ import nsTableRow           from  './ns-table-row.vue';
 import nsTabs               from  './ns-tabs.vue';
 import nsTabsItem           from  './ns-tabs-item.vue';
 import nsTextarea           from  './ns-textarea.vue';
+import nsReorderButton      from  './ns-reorder-button.vue';
 
 export { 
     nsMenu, 
@@ -78,7 +78,7 @@ export {
     nsNumpadPlus,
     nsSelectAudio, 
     nsAvatar, 
-    nsDateRangePicker, 
+    nsReorderButton,
     nsDaterangePicker,
     nsNotice, 
     nsPaginate, 

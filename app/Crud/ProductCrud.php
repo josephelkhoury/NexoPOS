@@ -2,6 +2,7 @@
 
 namespace App\Crud;
 
+use App\BulkEditor\ProductCrudBulkConfig;
 use App\Casts\ProductTypeCast;
 use App\Classes\CrudForm;
 use App\Classes\FormInput;
@@ -11,13 +12,16 @@ use App\Models\ProductCategory;
 use App\Models\ProductUnitQuantity;
 use App\Models\TaxGroup;
 use App\Models\UnitGroup;
+use App\Models\User;
 use App\Services\CrudEntry;
 use App\Services\CrudService;
 use App\Services\Helper;
 use App\Services\TaxService;
 use Illuminate\Http\Request;
+use Modules\BulkEditor\Classes\BulkEditor;
 use TorMorten\Eventy\Facades\Events as Hook;
 
+#[ BulkEditor( config: ProductCrudBulkConfig::class ) ]
 class ProductCrud extends CrudService
 {
     /**
@@ -61,7 +65,9 @@ class ProductCrud extends CrudService
      * Adding relation
      */
     public $relations = [
-        [ 'nexopos_users as user', 'nexopos_products.author', '=', 'user.id' ],
+        'join' => [
+            [ User::class, 'user' ],
+        ],
         'leftJoin' => [
             [ 'nexopos_products_categories as category', 'nexopos_products.category_id', '=', 'category.id' ],
             [ 'nexopos_products as parent', 'nexopos_products.parent_id', '=', 'parent.id' ],
@@ -225,6 +231,23 @@ class ProductCrud extends CrudService
             ),
             FormInput::switch(
                 errors: [],
+                label: __( 'Weighable Product' ),
+                name: 'is_weighable',
+                options: Helper::kvToJsOptions( [ __( 'No' ), __( 'Yes' ) ] ),
+                description: __( 'Define whether this unit is sold by weight using scale barcodes.' ),
+                disabled: ! ns()->option->get( 'ns_scale_barcode_product_length' ),
+                value: 0,
+            ),
+            FormInput::text(
+                errors: [],
+                label: __( 'PLU Code' ),
+                name: 'scale_plu',
+                value: '',
+                description: __( 'Price Lookup code for scale barcodes. Leave empty to auto-generate based on category PLU range.' ),
+                disabled: ! ns()->option->get( 'ns_scale_barcode_product_length' ),
+            ),
+            FormInput::switch(
+                errors: [],
                 label: __( 'Stock Alert' ),
                 name: 'stock_alert_enabled',
                 options: Helper::kvToJsOptions( [ __( 'No' ), __( 'Yes' ) ] ),
@@ -354,7 +377,17 @@ class ProductCrud extends CrudService
                                     'validation' => 'required',
                                     'value' => $entry->stock_management ?? 'enabled',
                                 ], [
-                                    'type' => 'textarea',
+                                    'type' => 'switch',
+                                    'options' => Helper::kvToJsOptions( [
+                                        __( 'No' ),
+                                        __( 'Yes' ),
+                                    ] ),
+                                    'description' => __( 'Pin this product to display at the top of the POS grid.' ),
+                                    'name' => 'pinned',
+                                    'label' => __( 'Pin Product' ),
+                                    'value' => $entry->pinned ?? false,
+                                ], [
+                                    'type' => 'ckeditor',
                                     'name' => 'description',
                                     'label' => __( 'Description' ),
                                     'value' => $entry->description ?? '',
@@ -686,6 +719,7 @@ class ProductCrud extends CrudService
                 'label' => __( 'Name' ),
                 '$direction' => '',
                 '$sort' => false,
+                'width' => '300px',
             ],
             'type' => [
                 'label' => __( 'Type' ),

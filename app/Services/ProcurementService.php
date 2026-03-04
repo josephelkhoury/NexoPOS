@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Classes\Cache;
 use App\Classes\Hook;
 use App\Events\ProcurementAfterCreateEvent;
 use App\Events\ProcurementAfterDeleteProductEvent;
@@ -26,7 +27,6 @@ use Exception;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use stdClass;
 
 class ProcurementService
@@ -967,12 +967,12 @@ class ProcurementService
         } );
 
         if ( $procurements->count() ) {
-            ns()->notification->create( [
-                'title' => __( 'Procurement Automatically Stocked' ),
-                'identifier' => 'ns-warn-auto-procurement',
-                'url' => url( '/dashboard/procurements' ),
-                'description' => sprintf( __( '%s procurement(s) has recently been automatically procured.' ), $procurements->count() ),
-            ] )->dispatchForGroup( [
+            ns()->notification->create(
+                title: __( 'Procurement Automatically Stocked' ),
+                identifier: 'ns-warn-auto-procurement',
+                url: url( '/dashboard/procurements' ),
+                description: sprintf( __( '%s procurement(s) has recently been automatically procured.' ), $procurements->count() ),
+            )->dispatchForGroup( [
                 Role::namespace( 'admin' ),
                 Role::namespace( 'nexopos.store.administrator' ),
             ] );
@@ -1135,5 +1135,62 @@ class ProcurementService
         }
 
         throw new Exception( __( 'Unable to save the procurement for later use.' ) );
+    }
+
+    public function getLowStockSuggestions()
+    {
+        return ProductUnitQuantity::query()
+            ->stockAlertEnabled()
+            ->whereRaw( 'low_quantity > quantity' )
+            ->with( [
+                'product' => function ( $query ) {
+                    $query->select( 'id', 'name', 'sku', 'barcode', 'tax_group_id', 'tax_type' )
+                        ->notGrouped()
+                        ->withStockEnabled();
+                },
+                'unit',
+            ] )
+            ->whereHas( 'product', function ( $query ) {
+                $query->notGrouped()
+                    ->withStockEnabled();
+            } )
+            ->limit( 50 )
+            ->get()
+            ->map( function ( $unitQuantity ) {
+                $product = Product::find( $unitQuantity->product_id )->load( 'unit_quantities.unit' );
+
+                /**
+                 * If we've made a procurement of this product recently,
+                 * we'll pull the recent quantity procured for that product
+                 */
+                $procurementProduct = ProcurementProduct::where( 'product_id', $unitQuantity->product_id )
+                    ->where( 'unit_id', $unitQuantity->unit_id )
+                    ->whereHas( 'procurement', function ( $query ) {
+                        $query->where( 'delivery_status', Procurement::STOCKED );
+                    } )
+                    ->orderBy( 'created_at', 'DESC' )
+                    ->first();
+
+                if ( $procurementProduct instanceof ProcurementProduct ) {
+                    $product->recent_procured_quantity = $procurementProduct->quantity;
+                    $product->recent_procured_unit_id = $procurementProduct->unit_id;
+                    $product->recent_procured_convert_unit_id = $procurementProduct->convert_unit_id;
+                    $product->recent_procured_purchase_price = $procurementProduct->purchase_price;
+
+                    if ( ! empty( $procurementProduct->convert_unit_id ) ) {
+                        $convertUnit = Unit::find( $procurementProduct->convert_unit_id );
+                        $product->recent_procured_convert_unit_label = $convertUnit instanceof Unit ? $convertUnit->label : null;
+                    } else {
+                        $product->recent_procured_convert_unit_label = null;
+                    }
+                } else {
+                    $product->recent_procured_quantity = $product->low_stock_quantity;
+                    $product->recent_procured_unit_id = $unitQuantity->unit_id;
+                    $product->recent_procured_convert_unit_id = null;
+                    $product->recent_procured_convert_unit_label = null;
+                }
+
+                return $product;
+            } );
     }
 }

@@ -1,14 +1,19 @@
 <template>
-    <div id="ns-best-cashiers" class="flex flex-auto flex-col shadow rounded-lg overflow-hidden">
+    <div id="ns-best-cashiers" class="ns-box flex flex-auto flex-col shadow rounded-lg overflow-hidden">
         <div class="flex-auto">
-            <div class="head text-center border-b w-full flex justify-between items-center p-2">
+            <div class="ns-box-header text-center border-b w-full flex justify-between items-center p-2">
                 <h5>{{ __( 'Best Cashiers' ) }}</h5>
-                <div>
-                    <ns-close-button @click="$emit( 'onRemove' )"></ns-close-button>
+                <div class="flex justify-between">
+                    <div class="px-1">
+                        <ns-icon-button class="widget-handle" className="la-expand-arrows-alt"></ns-icon-button>
+                    </div>
+                    <div class="px-1">
+                        <ns-close-button @click="$emit( 'onRemove' )"></ns-close-button>
+                    </div>
                 </div>
             </div>
             <div class="body">
-                <table class="table w-full" v-if="cashiers.length > 0">
+                <table class="ns-table w-full" v-if="cashiers.length > 0">
                     <thead>
                         <tr v-for="cashier of cashiers" :key="cashier.id" class="entry border-b text-sm">
                             <th class="p-2">
@@ -45,7 +50,7 @@
 import { nsCurrency } from '~/filters/currency';
 import { __ } from '~/libraries/lang';
 export default {
-    name: 'ns-best-customers',
+    name: 'ns-best-cashiers',
     data() {
         return {
             subscription: null,
@@ -54,18 +59,25 @@ export default {
         }
     },
     mounted() {
-        this.hasLoaded      =   false;
-        this.subscription    =   Dashboard.bestCashiers.subscribe( cashiers => {
-            this.hasLoaded  =   true;
-            this.cashiers   =   cashiers;
-        });
+        this.loadReport();
     },
     methods: {
         __,
         nsCurrency,
+        loadReport() {
+            this.hasLoaded      =   false;
+            nsHttpClient.get( '/api/dashboard/best-cashiers' )
+                .subscribe({
+                    next: (cashiers) => {
+                        this.hasLoaded  =   true;
+                        this.cashiers   =   cashiers;
+                    },
+                    error: (error) => {
+                        this.hasLoaded  =   true;
+                        this.cashiers   =   [];
+                    }
+                })
+        }
     },
-    unmounted() {
-        this.subscription.unsubscribe();
-    }
 }
 </script>

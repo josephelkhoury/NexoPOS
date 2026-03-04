@@ -1,9 +1,9 @@
 <template>
-    <div id="pos-grid" class="flex-auto flex flex-col">
+    <div id="pos-grid" class="flex-auto flex flex-col overflow-hidden">
         <div id="tools" class="flex pl-2" v-if="visibleSection === 'grid'">
             <div @click="switchTo( 'cart' )" class="switch-cart flex cursor-pointer rounded-tl-lg rounded-tr-lg px-3 py-2 border-t border-r border-l">
                 <span>{{ __( 'Cart' ) }}</span>
-                <span v-if="order" class="products-count flex items-center justify-center text-sm rounded-full h-6 w-6 ml-1">{{ order.products.length }}</span>
+                <span v-if="order" class="products-count flex items-center justify-center text-sm rounded-full h-6 w-6 ml-1">{{ cartProducts.length }}</span>
             </div>
             <div @click="switchTo( 'grid' )" class="switch-grid cursor-pointer rounded-tl-lg rounded-tr-lg px-3 py-2 font-semibold">
                 {{ __( 'Products' ) }}
@@ -12,16 +12,16 @@
         <div id="grid-container" class="rounded shadow  overflow-hidden flex-auto flex flex-col">
             <div id="grid-header" class="p-2 border-b ">
                 <div class="border rounded flex  overflow-hidden">
-                    <button :title="__( 'Search for products.' )" @click="openSearchPopup()" class="w-10 h-10 border-r  outline-none">
+                    <button :title="__( 'Search for products.' )" @click="openSearchPopup()" class="w-10 h-10 border-r  outline-hidden">
                         <i class="las la-search"></i>
                     </button>
-                    <button :title="__( 'Toggle merging similar products.' )" @click="posToggleMerge()" :class="settings.ns_pos_items_merge ? 'pos-button-clicked' : ''" class="outline-none w-10 h-10 border-r ">
+                    <button :title="__( 'Toggle merging similar products.' )" @click="posToggleMerge()" :class="settings.ns_pos_items_merge ? 'pos-button-clicked' : ''" class="outline-hidden w-10 h-10 border-r ">
                         <i class="las la-compress-arrows-alt"></i>
                     </button>
-                    <button :title="__( 'Toggle auto focus.' )" @click="options.ns_pos_force_autofocus = ! options.ns_pos_force_autofocus" :class="options.ns_pos_force_autofocus ? 'pos-button-clicked' : ''" class="outline-none w-10 h-10 border-r ">
+                    <button :title="__( 'Toggle auto focus.' )" @click="options.ns_pos_force_autofocus = ! options.ns_pos_force_autofocus" :class="options.ns_pos_force_autofocus ? 'pos-button-clicked' : ''" class="outline-hidden w-10 h-10 border-r ">
                         <i class="las la-barcode"></i>
                     </button>
-                    <input ref="search" v-model="barcode" type="text" class="flex-auto outline-none px-2 ">
+                    <input ref="search" v-model="barcode" type="text" class="flex-auto outline-hidden px-2 ">
                 </div>
             </div>
             <div style="height: 0px">
@@ -29,11 +29,47 @@
                     <div class="bar"></div>
                 </div>
             </div>
-            <div id="grid-breadscrumb" class="p-2">
+            <div id="grid-breadcrumb" class="p-2">
                 <ul class="flex">
                     <li><a @click="loadCategories()" href="javascript:void(0)" class="px-3 ">{{ __( 'Home' ) }} </a> <i class="las la-angle-right"></i> </li>
                     <li><a @click="loadCategories( bread )" v-for="bread of breadcrumbs" :key="bread.id" href="javascript:void(0)" class="px-3">{{ bread.name }} <i class="las la-angle-right"></i></a></li>
                 </ul>
+            </div>
+            
+            <div v-if="options.ns_pos_enable_pinned_products && pinnedProducts.length > 0" id="pinned-products">
+                <div class="overflow-x-hidden pinned-wrapper">
+                    <div class="shadow-sm grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 divide-x-1 divide-y-1 divide-solid divide-pos-button-edge flex-nowrap flex items-center">
+                        <div @click="addToTheCart( product )" v-for="product of pinnedProducts" :key="product.id" 
+                            :class="options.ns_pos_show_preview_pinned_products ? 'h-36' : 'h-20 small-pinned-product'"
+                            class="cursor-pointer flex flex-col items-center relativ justify-center overflow-hidden relative flex-shrink-0">
+                            <div v-if="options.ns_pos_show_preview_pinned_products" class="h-full w-full flex items-center justify-center overflow-hidden">
+                                <img v-if="product.galleries && product.galleries.filter( i => i.featured ).length > 0" :src="product.galleries.filter( i => i.featured )[0].url" class="object-cover h-full" :alt="product.name"/>
+                                <img v-else-if="hasNoFeatured( product )" :src="product.galleries[0].url" class="object-cover h-full" :alt="product.name"/>
+                                <i v-else="! product.galleries || product.galleries.filter( i => i.featured ).length === 0" class="las la-image text-6xl"></i>
+                            </div>
+                            <div class="w-full absolute z-10 -bottom-10">
+                                <div class="cell-item-label relative w-full flex flex-col items-center justify-center -top-10 h-20 p-2">
+                                    <h3 class="text-sm text-center w-full">{{ product.name }}</h3>
+                                    <template v-if="options.ns_pos_vat === 'disabled'">
+                                        <span class="text-sm" v-if="product.unit_quantities && product.unit_quantities.length === 1">
+                                            {{ nsCurrency( product.unit_quantities[0].sale_price_with_tax ) }}
+                                        </span>
+                                    </template>
+                                    <template v-else-if="options.ns_pos_gross_price_used">
+                                        <span class="text-sm" v-if="product.unit_quantities && product.unit_quantities.length === 1">
+                                            {{ nsCurrency( product.unit_quantities[0].sale_price_without_tax ) }}
+                                        </span>
+                                    </template>
+                                    <template v-else-if="options.ns_pos_gross_price_used === 'no'">
+                                        <span class="text-sm" v-if="product.unit_quantities && product.unit_quantities.length === 1">
+                                            {{ nsCurrency( product.unit_quantities[0].sale_price_with_tax ) }}
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div id="grid-items" class="overflow-y-auto h-full flex-col flex">
                 <div v-if="hasCategories" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -52,8 +88,8 @@
                 </div>
 
                 <div v-if="! hasCategories && ! hasProducts && ! isLoading" class="h-full w-full flex flex-col items-center justify-center">
-                    <i class="las la-frown-open text-8xl text-primary"></i>
-                    <p class="w-1/2 md:w-2/3 text-center text-primary">
+                    <i class="las la-frown-open text-8xl text-font"></i>
+                    <p class="w-1/2 md:w-2/3 text-center text-font">
                         {{ __( 'Looks like there is either no products and no categories. How about creating those first to get started ?' ) }}
                     </p>
                     <br>
@@ -71,12 +107,17 @@
                         <div class="w-full absolute z-10 -bottom-10">
                             <div class="cell-item-label relative w-full flex flex-col items-center justify-center -top-10 h-20 p-2">
                                 <h3 class="text-sm text-center w-full">{{ product.name }}</h3>
-                                <template v-if="options.ns_pos_gross_price_used === 'yes'">
+                                <template v-if="options.ns_pos_vat === 'disabled'">
+                                    <span class="text-sm" v-if="product.unit_quantities && product.unit_quantities.length === 1">
+                                        {{ nsCurrency( product.unit_quantities[0].sale_price_with_tax ) }}
+                                    </span>
+                                </template>
+                                <template v-else-if="options.ns_pos_gross_price_used">
                                     <span class="text-sm" v-if="product.unit_quantities && product.unit_quantities.length === 1">
                                         {{ nsCurrency( product.unit_quantities[0].sale_price_without_tax ) }}
                                     </span>
                                 </template>
-                                <template v-if="options.ns_pos_gross_price_used === 'no'">
+                                <template v-else-if="options.ns_pos_gross_price_used === 'no'">
                                     <span class="text-sm" v-if="product.unit_quantities && product.unit_quantities.length === 1">
                                         {{ nsCurrency( product.unit_quantities[0].sale_price_with_tax ) }}
                                     </span>
@@ -102,6 +143,9 @@ export default {
         return {
             items: Array.from({length: 1000}, (_, index) => ({ data: '#' + index })),
             products: [],
+            pinnedProducts: [],
+            cartProductsSubscribe: null,
+            cartProducts: [],
             categories: [],
             breadcrumbs: [],
             barcode: '',
@@ -176,7 +220,12 @@ export default {
             this.$forceUpdate();
         });
         this.visibleSectionSubscriber   =   POS.visibleSection.subscribe( section => {
-            this.visibleSection         =   section;
+            this.visibleSection      =   section;
+            this.$forceUpdate();
+        });
+
+        this.cartProductsSubscribe  =   POS.products.subscribe( products => {
+            this.cartProducts              =   products;
             this.$forceUpdate();
         });
 
@@ -230,6 +279,7 @@ export default {
         this.visibleSectionSubscriber.unsubscribe();
         this.settingsSubscriber.unsubscribe();
         this.optionsSubscriber.unsubscribe();
+        this.cartProductsSubscribe.unsubscribe();
 
         clearInterval( this.interval );
 
@@ -313,11 +363,62 @@ export default {
                     .subscribe({
                         next: result => {
                             this.barcode     =   '';
-                            POS.addToCart( result.product );
+                            const product    =   {};
+
+                            product.name                    =   result.product.name;
+                            product.id                      =   result.product.id;
+                            product.product_type            =   result.product.product_type;
+                            product.rate                    =   result.product.rate;
+                            product.tax_group_id            =   result.product.tax_group_id;
+                            product.tax_type                =   result.product.tax_type;
+                            product.unit_id                 =   result.unit.id;
+                            product.unit_price              =   result.unitQuantity.sale_price;
+                            product.price_with_tax          =   result.unitQuantity.sale_price_with_tax;
+                            product.price_without_tax       =   result.unitQuantity.sale_price_without_tax;
+                            product.unit_name               =   result.unit.name;
+                            
+                            // Check if this is a scale barcode with embedded data
+                            if ( result.scale ) {
+                                const scaleData = result.scale;
+                                
+                                // The backend already sets the selectedUnitQuantity based on PLU
+                                // We just need to set the quantity or price based on scale type
+                                
+                                // Set quantity or price based on scale barcode type
+                                if ( scaleData.type === 'weight' ) {
+                                    // For weight-based scales, set the quantity
+                                    product.quantity = scaleData.value;
+                                    
+                                    // Show notification with unit name
+                                    const unitName = scaleData.unit?.name || 'kg';
+                                    nsSnackBar.info( 
+                                        __( 'Scale barcode detected: {weight} {unit}' )
+                                            .replace( '{weight}', scaleData.value.toFixed(3) )
+                                            .replace( '{unit}', unitName )
+                                    );
+                                } else if ( scaleData.type === 'price' ) {
+                                    // For price-based scales, we need to calculate quantity
+                                    // based on the price and unit price
+                                    const unitPrice = result.product.selectedUnitQuantity?.sale_price || 
+                                                     result.product.unit_quantities[0]?.sale_price || 0;
+                                    if ( unitPrice > 0 ) {
+                                        product.quantity = scaleData.value / unitPrice;
+                                    }
+                                    
+                                    // Show notification
+                                    nsSnackBar.info( 
+                                        __( 'Scale barcode detected: {price}' )
+                                            .replace( '{price}', this.nsCurrency( scaleData.value ) )
+                                    );
+                                }
+                            }
+                            
+                            console.log( JSON.parse( JSON.stringify( product ) ) );
+                            POS.addToCart( product );
                         },
                         error: ( error ) => {
                             this.barcode     =   '';
-                            nsSnackBar.error( error.message ).subscribe();
+                            nsSnackBar.error( error.message );
                         }
                     })
             }
@@ -344,6 +445,7 @@ export default {
                     next: (result ) => {
                         this.categories         =   result.categories;
                         this.products           =   result.products;
+                        this.pinnedProducts     =   result.pinnedProducts || [];
                         this.previousCategory   =   result.previousCategory;
                         this.currentCategory    =   result.currentCategory;
                         this.updateBreadCrumb( this.currentCategory );
@@ -351,7 +453,7 @@ export default {
                     },
                     error: ( error ) => {
                         this.isLoading  =   false;
-                        return nsSnackBar.error( __( 'An unexpected error occurred.' ) ).subscribe();
+                        return nsSnackBar.error( __( 'An unexpected error occurred.' ) );
                     }
                 });
         },

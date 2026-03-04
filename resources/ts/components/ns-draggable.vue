@@ -21,6 +21,7 @@
 
         const draggable         = ref(null);
         const draggedElement    = ref(null);
+        const hoverTimeout      = ref({});
 
         let dragGhost   =   null;
 
@@ -30,6 +31,14 @@
         let initialY = 0;
     
         const startDrag = (e) => {
+            // widget must include a ".widget-handle" class to be draggable
+            // we'll then check if the clicked element is a child of class ".widget-handle"
+            const widgetHandle = e.target.closest('.widget-handle');
+            
+            if (widgetHandle === null) {
+                return;
+            }
+            
             const wrapper   =   e.srcElement.closest( '.ns-draggable-item' );
             const position  =   wrapper.getBoundingClientRect();
             
@@ -45,6 +54,10 @@
             const dropZone    =   wrapper.closest( '.ns-drop-zone' );
             
             dropZone.appendChild( dragGhost );
+
+            // We want to give a special effect to the item being dragged using filter
+            // So we create a ghost element that will be dragged around
+            wrapper.style.filter = 'grayscale(1) opacity(0.5)';
 
             startX = e.clientX - initialX;
             startY = e.clientY - initialY;
@@ -75,7 +88,8 @@
 
             dragGhost.style.display = 'block';
             dragGhost.style.transform = `translate(${initialX}px, ${initialY}px)`;   
-            dragGhost.style.cursor = 'grabbing';
+            dragGhost.classList.add( 'z-10' );
+            dragGhost.classList.add( 'widget-grabbed' );
 
             const dropZones = document.querySelectorAll('.ns-drop-zone');
             dropZones.forEach((dropZone) => {
@@ -89,7 +103,7 @@
                 } else {
                     dropZone.setAttribute( 'hovered', 'false' );
                 }
-            }); 
+            });
         };
     
         const endDrag = (e ) => {
@@ -132,6 +146,8 @@
   </script>
   
   <style>
+  @reference "&/css/light.css";
+
   .ns-draggable-item {
     user-select: none;
   }

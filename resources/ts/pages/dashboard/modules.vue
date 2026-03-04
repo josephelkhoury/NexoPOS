@@ -20,7 +20,7 @@
                 </span>
                 <div class="px-2 w-auto">
                     <div class="input-group mb-2 shadow border-2 info rounded overflow-hidden">
-                        <input ref="searchField" :placeholder="searchPlaceholder" v-model="searchText" type="text" class="w-full md:w-60 outline-none py-1 px-2">
+                        <input ref="searchField" :placeholder="searchPlaceholder" v-model="searchText" type="text" class="w-full md:w-60 outline-hidden py-1 px-2">
                     </div>
                 </div>
             </div>
@@ -32,13 +32,13 @@
         </div>
         <div class="module-section flex-auto flex flex-wrap -mx-4">
             <div v-if="noModules && searchText.length === 0" class="p-4 flex-auto flex">
-                <div class="flex border-dashed border w-full border-primary h-32 flex-auto justify-center items-center">
-                    <div class="text-primary">{{ noModuleMessage }}</div>
+                <div class="flex border-dashed border w-full border-secondary h-32 flex-auto justify-center items-center">
+                    <div class="text-fontcolor">{{ noModuleMessage }}</div>
                 </div>
             </div>
             <div v-if="noModules && searchText.length > 0" class="p-4 flex-auto flex">
                 <div class="flex h-full flex-auto border-dashed border-2 border-box-edge bg-surface justify-center items-center">
-                    <h2 class="font-bold text-xl text-primary text-center">{{ __( 'No modules matches your search term.' ) }}</h2>
+                    <h2 class="font-bold text-xl text-fontcolor text-center">{{ __( 'No modules matches your search term.' ) }}</h2>
                 </div>
             </div>
             <div class="px-4 w-full md:w-1/2 lg:w-1/3 xl:1/4 py-4" :key="moduleNamespace" v-for="(moduleObject,moduleNamespace) of modules">
@@ -54,14 +54,20 @@
                             </div>
                             <strong>v{{ moduleObject[ 'version' ] }}</strong>
                         </div>
-                        <p class="py-2 text-sm">
+                        <p class="py-2 text-sm" v-if="typeof moduleObject.description === 'string'">
                             {{ truncateText( moduleObject.description, 20, '...' ) }}
                             <a class="text-xs text-info-tertiary hover:underline" @click="openPopupDetails( moduleObject )" v-if="countWords( moduleObject.description ) > 20" href="javascript:void(0)">[{{  __( 'Read More' ) }}]</a>
                         </p>
+                        <template v-if="typeof moduleObject.description === 'object'">
+                            <p class="py-2 text-sm">
+                                {{ truncateText( moduleObject.description[ currentLocale ] || moduleObject.description[ 'en' ], 20, '...' ) }}
+                                <a class="text-xs text-info-tertiary hover:underline" @click="openPopupDetails( moduleObject )" v-if="countWords( moduleObject.description[ currentLocale ] || moduleObject.description[ 'en' ] ) > 20" href="javascript:void(0)">[{{  __( 'Read More' ) }}]</a>
+                            </p>
+                        </template>
                     </div>
                     <div class="ns-box-footer border-t p-2 flex justify-between">
-                        <ns-button :disabled="moduleObject.autoloaded || moduleObject[ 'psr-4-compliance' ] === false" v-if="! moduleObject.enabled" @click="enableModule( moduleObject )" type="info">{{ __( 'Enable' ) }}</ns-button>
-                        <ns-button :disabled="moduleObject.autoloaded || moduleObject[ 'psr-4-compliance' ] === false" v-if="moduleObject.enabled" @click="disableModule( moduleObject )" type="success">{{ __( 'Disable' ) }}</ns-button>
+                        <ns-button :disabled="moduleObject.autoloaded || moduleObject[ 'psr-4-compliance' ] === false" v-if="! moduleObject.enabled" @click="enableModule( moduleObject )" type="default">{{ __( 'Enable' ) }}</ns-button>
+                        <ns-button :disabled="moduleObject.autoloaded || moduleObject[ 'psr-4-compliance' ] === false" v-if="moduleObject.enabled" @click="disableModule( moduleObject )" type="warning">{{ __( 'Disable' ) }}</ns-button>
                         <div class="flex -mx-1">
                             <div class="px-1 flex -mx-1">
                                 <div class="px-1 flex">
@@ -99,7 +105,8 @@ export default {
             total_disabled : 0,
             total_invalid: 0,
             searchText: '',
-            searchTimeOut: null
+            searchTimeOut: null,
+            currentLocale: ns.language,
         }
     },
     mounted() {
@@ -157,7 +164,7 @@ export default {
         openPopupDetails( moduleDetails ) {
             Popup.show( nsAlertPopup, {
                 title: __( '{module}' ).replace( '{module}', moduleDetails.name ),
-                message: moduleDetails.description
+                message: typeof moduleDetails.description === 'object' ? moduleDetails.description[ this.currentLocale ] : moduleDetails.description,
             })
         },
 
@@ -165,6 +172,7 @@ export default {
             document.location   =   '/dashboard/modules/download/' + module.namespace;
         },
         truncateText(text, maxLength, replacement = '...' ) {
+            console.log({ text })
             let words = text.split(' ');
 
             if (words.length > maxLength) {
@@ -190,19 +198,19 @@ export default {
             nsHttpClient.put( url )
                 .subscribe({
                     next: async result => {
-                        nsSnackBar.success( result.message ).subscribe();
+                        nsSnackBar.success( result.message );
 
                         this.loadModules().subscribe({
                             next: result => {
                                 document.location.reload();
                             },
                             error: ( error ) => {
-                                nsSnackBar.error( error.message ).subscribe();
+                                nsSnackBar.error( error.message );
                             }
                         });
                     },
                     error: ( error ) => {
-                        nsSnackBar.error( error.message ).subscribe();
+                        nsSnackBar.error( error.message );
                     }
                 });
         },
@@ -211,18 +219,18 @@ export default {
             nsHttpClient.put( url )
                 .subscribe({
                     next: result => {
-                        nsSnackBar.success( result.message ).subscribe();
+                        nsSnackBar.success( result.message );
                         this.loadModules().subscribe({
                             next: result => {
                                 document.location.reload();
                             },
                             error: ( error ) => {
-                                nsSnackBar.error( error.message ).subscribe();
+                                nsSnackBar.error( error.message );
                             }
                         })
                     },
                     error: ( error ) => {
-                        nsSnackBar.error( error.message ).subscribe();
+                        nsSnackBar.error( error.message );
                     }
                 });
         },
@@ -251,7 +259,7 @@ export default {
                             })
                         },
                         error: ( error ) => {
-                            nsSnackBar.error( error.message, null, { duration: 5000 }).subscribe();
+                            nsSnackBar.error( error.message, null, { duration: 5000 });
                         }
                     })
             }

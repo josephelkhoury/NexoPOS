@@ -15,7 +15,12 @@ use App\Services\Helper;
 
 class EntityTransactionFields extends FieldsService
 {
-    protected static $identifier = Transaction::TYPE_ENTITY;
+    const IDENTIFIER = Transaction::TYPE_ENTITY;
+
+    /**
+     * Ensures the fields are automatically detected.
+     */
+    const AUTOLOAD = true;
 
     public function __construct( ?Transaction $transaction = null )
     {

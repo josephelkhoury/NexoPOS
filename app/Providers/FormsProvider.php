@@ -2,31 +2,16 @@
 
 namespace App\Providers;
 
-use App\Fields\AuthLoginFields;
-use App\Fields\AuthRegisterFields;
-use App\Fields\CashRegisterCashingFields;
-use App\Fields\CashRegisterCashoutFields;
-use App\Fields\CashRegisterClosingFields;
-use App\Fields\CashRegisterOpeningFields;
-use App\Fields\CustomersAccountFields;
-use App\Fields\DirectTransactionFields;
-use App\Fields\EntityTransactionFields;
-use App\Fields\LayawayFields;
-use App\Fields\NewPasswordFields;
-use App\Fields\OrderPaymentFields;
-use App\Fields\PasswordLostFields;
-use App\Fields\PosOrderSettingsFields;
-use App\Fields\ProcurementFields;
-use App\Fields\ReccurringTransactionFields;
-use App\Fields\RefundProductFields;
-use App\Fields\ResetFields;
-use App\Fields\ScheduledTransactionFields;
-use App\Fields\UnitsFields;
-use App\Fields\UnitsGroupsFields;
 use App\Forms\POSAddressesForm;
 use App\Forms\ProcurementForm;
 use App\Forms\UserProfileForm;
+use App\Services\ModulesService;
+use Exception;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
+use ReflectionClass;
+use ReflectionParameter;
 use TorMorten\Eventy\Facades\Events as Hook;
 
 class FormsProvider extends ServiceProvider
@@ -64,75 +49,130 @@ class FormsProvider extends ServiceProvider
             return $class;
         }, 10, 2 );
 
-        Hook::addFilter( 'ns.fields', function ( $class, $identifier ) {
-            switch ( $class ) {
-                case AuthLoginFields::getIdentifier():
-                    return new AuthLoginFields;
-                    break;
-                case PasswordLostFields::getIdentifier():
-                    return new PasswordLostFields;
-                    break;
-                case NewPasswordFields::getIdentifier():
-                    return new NewPasswordFields;
-                    break;
-                case AuthRegisterFields::getIdentifier():
-                    return new AuthRegisterFields;
-                    break;
-                case CustomersAccountFields::getIdentifier():
-                    return new CustomersAccountFields;
-                    break;
-                case LayawayFields::getIdentifier():
-                    return new LayawayFields;
-                    break;
-                case RefundProductFields::getIdentifier():
-                    return new RefundProductFields;
-                    break;
-                case CashRegisterOpeningFields::getIdentifier():
-                    return new CashRegisterOpeningFields;
-                    break;
-                case CashRegisterClosingFields::getIdentifier():
-                    return new CashRegisterClosingFields;
-                    break;
-                case CashRegisterCashingFields::getIdentifier():
-                    return new CashRegisterCashingFields;
-                    break;
-                case CashRegisterCashoutFields::getIdentifier():
-                    return new CashRegisterCashoutFields;
-                    break;
-                case PosOrderSettingsFields::getIdentifier():
-                    return new PosOrderSettingsFields;
-                    break;
-                case OrderPaymentFields::getIdentifier():
-                    return new OrderPaymentFields;
-                    break;
-                case ProcurementFields::getIdentifier():
-                    return new ProcurementFields;
-                    break;
-                case UnitsFields::getIdentifier():
-                    return new UnitsFields;
-                    break;
-                case DirectTransactionFields::getIdentifier():
-                    return new DirectTransactionFields;
-                    break;
-                case ReccurringTransactionFields::getIdentifier():
-                    return new ReccurringTransactionFields;
-                    break;
-                case EntityTransactionFields::getIdentifier():
-                    return new EntityTransactionFields;
-                    break;
-                case ScheduledTransactionFields::getIdentifier():
-                    return new ScheduledTransactionFields;
-                    break;
-                case UnitsGroupsFields::getIdentifier():
-                    return new UnitsGroupsFields;
-                    break;
-                case ResetFields::getIdentifier():
-                    return new ResetFields;
-                    break;
-                default:
-                    return $class;
-                    break;
+        /**
+         * We'll scan the fields directory
+         * and autoload the fields that has "AUTOLOAD" constant
+         * set to true
+         */
+        $this->autoloadFields(
+            path: app_path( 'Fields' ),
+            classRoot: 'App\\Fields\\'
+        );
+
+        /**
+         * Now for all the modules that are enabled we'll make sure
+         * to load their fields if they are set to be autoloaded
+         *
+         * @var ModulesService
+         */
+        $moduleService = app()->make( ModulesService::class );
+
+        $moduleService->getEnabledAndAutoloadedModules()->each( function ( $module ) {
+            $module = (object) $module;
+            $this->autoloadFields(
+                path: Str::finish( $module->path, DIRECTORY_SEPARATOR ) . 'Fields',
+                classRoot: 'Modules\\' . $module->namespace . '\\Fields\\'
+            );
+        } );
+    }
+
+    private function autoloadFields( $path, $classRoot )
+    {
+        if ( ! is_dir( $path ) ) {
+            return;
+        }
+
+        $fields = scandir( $path );
+
+        foreach ( $fields as $field ) {
+            if ( in_array( $field, [ '.', '..' ] ) ) {
+                continue;
             }
-        }, 10, 2 );
+
+            $field = str_replace( '.php', '', $field );
+            $field = $classRoot . $field;
+
+            if ( class_exists( $field ) ) {
+                /**
+                 * We'll initialize a reflection class
+                 * to perform a verification on the constructor.
+                 */
+                $reflection = new ReflectionClass( $field );
+
+                if ( $reflection->hasConstant( 'AUTOLOAD' ) && $field::AUTOLOAD && $reflection->hasConstant( 'IDENTIFIER' ) ) {
+
+                    $constructor = $reflection->getConstructor();
+
+                    $params = collect();
+
+                    if ( $constructor ) {
+                        $parameters = $constructor ? $constructor->getParameters() : [];
+
+                        $params = collect( $parameters )->map( function ( ReflectionParameter $param ) {
+                            return [
+                                'name' => $param->getName(),
+                                'type' => $param->getType() ? $param->getType()->getName() : null,
+                                'isOptional' => $param->isOptional(),
+                                'isBuiltin' => $param->getType()->isBuiltin(),
+                                'default' => $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null,
+                            ];
+                        } );
+                    }
+
+                    /**
+                     * While loading the relevant field class, we'll attempt to resolve it's dependencies
+                     * especially if those are subchild of the Illuminate\Database\Eloquent\Model::class
+                     */
+                    Hook::addFilter( 'ns.fields', function ( $identifier, $resource = null ) use ( $field, $params ) {
+                        if ( $identifier === $field::IDENTIFIER ) {
+                            $resolved = collect( $params )->map( function ( $param ) use ( $resource, $field ) {
+                                $isBuiltin = $param[ 'isBuiltin' ];
+
+                                /**
+                                 * We strickly want to integrate a D.I of models
+                                 * other non-builtin will be resolved using app()->make().
+                                 */
+                                if ( ! $isBuiltin ) {
+                                    if ( is_subclass_of( $param[ 'type' ], Model::class ) ) {
+                                        $model = $param[ 'type' ];
+                                        $instance = $model::find( $resource );
+
+                                        /**
+                                         * if the param is not optional, we must have a valid instance.
+                                         */
+                                        if ( ! $instance instanceof $model && ! $param[ 'isOptional' ] ) {
+                                            throw new Exception( sprintf(
+                                                __( 'Unable to resolve the dependency %s (%s) for the class %s' ),
+                                                $resource,
+                                                $model,
+                                                $field
+                                            ) );
+                                        }
+
+                                        return $instance;
+                                    } else {
+                                        return app()->make( $param[ 'type' ] );
+                                    }
+                                }
+
+                                return false;
+                            } )->filter();
+
+                            /**
+                             * If no dependencies were resolved, we can create a new instance
+                             * of the field class.
+                             */
+                            if ( $resolved->isEmpty() ) {
+                                return new $field;
+                            }
+
+                            return call_user_func_array( [ $field, '__construct' ], $resolved->toArray() );
+                        }
+
+                        return $identifier;
+                    } );
+                }
+            }
+        }
     }
 }

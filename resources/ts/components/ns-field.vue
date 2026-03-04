@@ -1,9 +1,13 @@
 <script lang="ts">
-import { default as nsDateRangePicker } from './ns-date-range-picker.vue';
+import { shallowRef } from 'vue';
 import { default as nsDateTimePicker } from './ns-date-time-picker.vue';
 import { default as nsSwitch } from './ns-switch.vue';
+
+declare const nsComponents: any;
+declare const nsExtraComponents: any;
+
 export default {
-    emits: ['blur', 'change', 'saved', 'keypress'],
+    emits: ['blur', 'change', 'saved', 'keypress', 'keyup' ],
     data: () => {
         return {
             formSubjectSubscription: null,
@@ -13,7 +17,6 @@ export default {
         // ...
     },
     components: {
-        nsDateRangePicker,
         nsDateTimePicker,
         nsSwitch,
     },
@@ -67,7 +70,7 @@ export default {
             return ['custom'].includes(this.field.type);
         },
     },
-    props: [ 'field' ],
+    props: [ 'field', 'siblings' ],
     methods: {
         handleSaved(field, event) {
             this.$emit('saved', event);
@@ -106,6 +109,15 @@ export default {
             this.refreshMultiselect();
             this.$emit('change', { action: 'removeOption', option });
         },
+        loadComponent( componentName ) {
+            if ( nsExtraComponents[ componentName ] ) {
+                return shallowRef( nsExtraComponents[ componentName ] ).value;
+            } else if ( nsComponents[ componentName ] ) {
+                return shallowRef( nsComponents[ componentName ] ).value;
+            } else {
+                throw `Component ${ componentName } not found.`;
+            }
+        },
     },
 }
 </script>
@@ -113,17 +125,12 @@ export default {
     <template v-if="isHiddenField">
         <input type="hidden" :name="field.name" :value="field.value" />
     </template>
-    <div class="flex flex-auto mb-2" v-if="!isHiddenField">
-        <ns-input @keypress="changeTouchedState(field, $event)" @change="changeTouchedState(field, $event)"
+    <div class="flex flex-auto" :class="field.label ? 'mb-2': ''" v-if="!isHiddenField">
+        <ns-input @keyup="$emit( 'keyup', $event )" @keypress="changeTouchedState(field, $event)" @change="changeTouchedState(field, $event)"
             :field="field" v-if="isInputField">
             <template v-slot>{{ field.label }}</template>
             <template v-slot:description><span v-html="field.description || ''"></span></template>
         </ns-input>
-        <ns-date-time-picker @blur="$emit('blur', field)" @change="changeTouchedState(field, $event)" :field="field"
-            v-if="isDateTimePicker">
-            <template v-slot>{{ field.label }}</template>
-            <template v-slot:description><span v-html="field.description || ''"></span></template>
-        </ns-date-time-picker>
         <ns-date @blur="$emit('blur', field)" @change="changeTouchedState(field, $event)" :field="field"
             v-if="isDateField">
             <template v-slot>{{ field.label }}</template>
@@ -148,6 +155,11 @@ export default {
             <template v-slot>{{ field.label }}</template>
             <template v-slot:description><span v-html="field.description || ''"></span></template>
         </ns-daterange-picker>
+        <ns-date-time-picker @blur="$emit('blur', field)" @change="changeTouchedState(field, $event)" :field="field"
+            v-if="isDateTimePicker">
+            <template v-slot>{{ field.label }}</template>
+            <template v-slot:description><span v-html="field.description || ''"></span></template>
+        </ns-date-time-picker>
         <ns-select-audio @blur="$emit('blur', field)" @change="changeTouchedState(field, $event)" :field="field"
             v-if="isSelectAudio">
             <template v-slot>{{ field.label }}</template>
@@ -183,8 +195,8 @@ export default {
         </ns-switch>
         <template v-if="isCustom">
             <keep-alive>
-                <component :field="field" @blur="$emit('blur', field)" @change="changeTouchedState(field, $event)"
-                    v-bind:is="field.component"></component>
+                <component :is="loadComponent(field.component)" :field="field" @blur="$emit('blur', field)" @change="changeTouchedState(field, $event)"
+                    ></component>
             </keep-alive>
         </template>
     </div>

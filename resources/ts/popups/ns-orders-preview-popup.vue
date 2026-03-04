@@ -89,12 +89,12 @@ export default {
                         nsHttpClient.delete( `/api/orders/${this.order.id}` )
                             .subscribe({
                                 next: result => {
-                                    nsSnackBar.success( result.message ).subscribe();
+                                    nsSnackBar.success( result.message );
                                     this.refreshCrudTable();
                                     this.closePopup(true);
                                 },
                                 error:  error => {
-                                    nsSnackBar.error( error.message ).subscribe();
+                                    nsSnackBar.error( error.message );
                                 }
                             })
                     }
@@ -114,12 +114,12 @@ export default {
                                 nsHttpClient.post( `/api/orders/${this.order.id}/void`, { reason })
                                     .subscribe({
                                         next: result => {
-                                            nsSnackBar.success( result.message ).subscribe();
+                                            nsSnackBar.success( result.message );
                                             this.refreshCrudTable();
                                             this.closePopup(true);
                                         },
                                         error:  error => {
-                                            nsSnackBar.error( error.message ).subscribe();
+                                            nsSnackBar.error( error.message );
                                         }
                                     })
                             }
@@ -152,7 +152,7 @@ export default {
 }
 </script>
 <template>
-    <div class="h-95vh w-95vw md:h-6/7-screen md:w-6/7-screen overflow-hidden shadow-xl ns-box flex flex-col">
+    <div class="h-95vh w-95vw md:h-[80vh] md:w-[85.71vw] overflow-hidden shadow-xl ns-box flex flex-col">
         <div class="border-b ns-box-header p-3 flex items-center justify-between">
             <div>
                 <h3>{{ __( 'Order Options' ) }}</h3>

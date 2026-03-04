@@ -1,5 +1,5 @@
 <template>
-    <div class="ns-box shadow-lg w-6/7-screen md:w-5/7-screen lg:w-3/7-screen">
+    <div class="ns-box shadow-lg w-[85.71vw] md:w-[71.43vw] lg:w-[42.86vw]">
         <div class="p-2 border-b ns-box-header">
             <h5 class="font-semibold">{{ __( 'Options' ) }}</h5>
         </div>
@@ -64,8 +64,7 @@ export default {
                 return this.popup.close();
             }
 
-            return nsSnackBar.error( __( 'Unable to proceed. The form is not valid.' ) )
-                .subscribe();
+            return nsSnackBar.error( __( 'Unable to proceed. The form is not valid.' ) );
         }
     },
     mounted() {

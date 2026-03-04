@@ -24,6 +24,14 @@ class PosSettings extends SettingsPage
             'features' => include ( dirname( __FILE__ ) . '/pos/features.php' ),
         ] );
 
+        if ( ns()->option->get( 'ns_pos_action_permission_enabled' ) ) {
+            $posSettingsTabs['actions'] = include dirname( __FILE__ ) . '/pos/actions.php';
+        }
+
+        if ( ns()->option->get( 'ns_scale_barcode_enabled' ) === 'yes' ) {
+            $posSettingsTabs['scale-barcode'] = include dirname( __FILE__ ) . '/pos/scale-barcode.php';
+        }
+
         $this->form = [
             'tabs' => $posSettingsTabs,
             'title' => __( 'POS Settings' ),

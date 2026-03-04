@@ -1,5 +1,5 @@
 <template>
-    <div class="shadow-xl ns-box w-95vw md:w-3/5-screen lg:w-3/7-screen h-95vh md:h-3/5-screen lg:h-3/7-screen overflow-hidden flex flex-col">
+    <div class="shadow-xl ns-box w-95vw md:w-[60vw] lg:w-[42.86vw] h-95vh md:h-[60vh] lg:h-[70vh] overflow-hidden flex flex-col">
         <div class="p-2 flex justify-between border-b ns-box-header items-center">
             <h3 class="text-semibold">{{ __( 'Products' ) }}</h3>
             <div>
@@ -59,7 +59,7 @@ export default {
                 return this.close();
             }
 
-            nsSnackBar.error( __( 'The form is not valid.' ) ).subscribe();
+            nsSnackBar.error( __( 'The form is not valid.' ) );
         },
 
         loadFields() {

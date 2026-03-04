@@ -2,15 +2,20 @@
     <div id="ns-orders-chart" class="flex flex-auto flex-col shadow ns-box rounded-lg overflow-hidden">
         <div class="p-2 flex ns-box-header items-center justify-between border-b">
             <h3 class="font-semibold">{{ __( 'Recents Orders' ) }}</h3>
-            <div>
-                <ns-close-button @click="$emit( 'onRemove' )"></ns-close-button>
+            <div class="flex justify-between">
+                <div class="px-1">
+                    <ns-icon-button class="widget-handle" className="la-expand-arrows-alt"></ns-icon-button>
+                </div>
+                <div class="px-1">
+                    <ns-close-button @click="$emit( 'onRemove' )"></ns-close-button>
+                </div>
             </div>
         </div>
-        <div class="p-2">
+        <div class="p-2 ns-box-body border-b">
             <Bar v-if="report" id="chart" :options="chartOptions" :data="chartData"/>
         </div>
         <div class="foot -mx-4 flex flex-wrap">
-            <div class="flex w-full lg:w-full border-b">
+            <div class="flex w-full lg:w-full py-1 border-b ns-box-body">
                 <div class="px-4 w-1/2 lg:w-1/2 flex flex-col items-center justify-center">
                     <span class="text-xs">{{ __( 'Weekly Sales' ) }}</span>
                     <h2 class="text-lg xl:text-xl font-bold">{{ nsCurrency( totalWeeklySales, 'abbreviate' ) }}</h2>
@@ -20,7 +25,7 @@
                     <h2 class="text-lg xl:text-xl font-bold">{{ nsCurrency( totalWeekTaxes, 'abbreviate' ) }}</h2>
                 </div>
             </div>
-            <div class="flex w-full lg:w-full">
+            <div class="flex w-full lg:w-full py-1">
                 <div class="px-4 w-full lg:w-1/2 flex flex-col items-center justify-center">
                     <span class="text-xs">{{ __( 'Net Income' ) }}</span>
                     <h2 class="text-lg xl:text-xl font-bold">{{ nsCurrency( totalWeekIncome, 'abbreviate' ) }}</h2>
@@ -91,66 +96,72 @@ export default {
         __,
         nsCurrency, 
         nsRawCurrency,
+        loadReport() {
+            nsHttpClient.get( '/api/dashboard/weeks' )
+                .subscribe({
+                    next: data => {
+                        if ( data.result !== undefined ) {
+                            this.chartOptions.xaxis.categories  =   data.result.map( r => r.label );
+                            this.report             =   data;
+                            this.totalWeeklySales   =   0;
+                            this.totalWeekIncome    =   0;
+                            this.totalWeekExpenses  =   0;
+                            this.totalWeekTaxes     =   0;
+            
+                            this.report.result.forEach( ( result, index ) => {
+                                /**
+                                 * current week
+                                 */
+                                if ( result.current !== undefined ) {
+                                    const sales     =   result.current.entries.map( dashboardDay => dashboardDay.day_paid_orders );
+                                    let total       =   0;
+            
+                                    if ( sales.length > 0 ) {
+                                        total       =   sales.reduce( ( b, a ) => b + a );
+                                    }
+            
+                                    /**
+                                     * this compute the week expenses
+                                     * and taxes for the current week
+                                     */
+                                    this.totalWeekExpenses  +=  result.current.entries.map( dashboardDay => parseFloat( dashboardDay.day_expenses ) ).reduce( ( b, a ) => b + a );
+                                    this.totalWeekTaxes     +=  result.current.entries.map( dashboardDay => parseFloat( dashboardDay.day_taxes ) ).reduce( ( b, a ) => b + a );
+                                    this.totalWeekIncome    +=  result.current.entries.map( dashboardDay => parseFloat( dashboardDay.day_income ) ).reduce( ( b, a ) => b + a );
+            
+                                    this.series[ 0 ].data.push( total );
+                                    
+                                } else {
+                                    this.series[ 0 ].data.push(0);
+                                }
+            
+                                /**
+                                 * previous week
+                                 */
+                                if ( result.previous !== undefined ) {
+                                    const sales     =   result.previous.entries.map( dashboardDay => dashboardDay.day_paid_orders );
+                                    let total       =   0;
+            
+                                    if ( sales.length > 0 ) {
+                                        total       =   sales.reduce( ( b, a ) => b + a );
+                                    }
+            
+                                    this.series[ 1 ].data.push( total );
+                                } else {
+                                    this.series[ 1 ].data.push(0);
+                                }
+                            });
+            
+                            this.totalWeeklySales   =   this.series[0].data.reduce( ( b, a ) => b + a );
+            
+                            this.chartData.labels   =   this.report.result.map( r => r.label );
+                            this.chartData.datasets =   this.series;
+                        }
+                    }
+                })
+        }
     },
     mounted() {
-        this.reportSubscription     =   Dashboard.weeksSummary.subscribe( data => {
-            if ( data.result !== undefined ) {
-                this.chartOptions.xaxis.categories  =   data.result.map( r => r.label );
-                this.report             =   data;
-                this.totalWeeklySales   =   0;
-                this.totalWeekIncome    =   0;
-                this.totalWeekExpenses  =   0;
-                this.totalWeekTaxes     =   0;
-
-                this.report.result.forEach( ( result, index ) => {
-                    /**
-                     * current week
-                     */
-                    if ( result.current !== undefined ) {
-                        const sales     =   result.current.entries.map( dashboardDay => dashboardDay.day_paid_orders );
-                        let total       =   0;
-
-                        if ( sales.length > 0 ) {
-                            total       =   sales.reduce( ( b, a ) => b + a );
-                        }
-
-                        /**
-                         * this compute the week expenses
-                         * and taxes for the current week
-                         */
-                        this.totalWeekExpenses  +=  result.current.entries.map( dashboardDay => parseFloat( dashboardDay.day_expenses ) ).reduce( ( b, a ) => b + a );
-                        this.totalWeekTaxes     +=  result.current.entries.map( dashboardDay => parseFloat( dashboardDay.day_taxes ) ).reduce( ( b, a ) => b + a );
-                        this.totalWeekIncome    +=  result.current.entries.map( dashboardDay => parseFloat( dashboardDay.day_income ) ).reduce( ( b, a ) => b + a );
-
-                        this.series[ 0 ].data.push( total );
-                        
-                    } else {
-                        this.series[ 0 ].data.push(0);
-                    }
-
-                    /**
-                     * previous week
-                     */
-                    if ( result.previous !== undefined ) {
-                        const sales     =   result.previous.entries.map( dashboardDay => dashboardDay.day_paid_orders );
-                        let total       =   0;
-
-                        if ( sales.length > 0 ) {
-                            total       =   sales.reduce( ( b, a ) => b + a );
-                        }
-
-                        this.series[ 1 ].data.push( total );
-                    } else {
-                        this.series[ 1 ].data.push(0);
-                    }
-                });
-
-                this.totalWeeklySales   =   this.series[0].data.reduce( ( b, a ) => b + a );
-
-                this.chartData.labels   =   this.report.result.map( r => r.label );
-                this.chartData.datasets =   this.series;
-            }
-        });
+        this.loadReport();
     }
 }
 </script>

@@ -1,9 +1,14 @@
 <template>
-    <div id="ns-orders-summary" class="flex flex-auto flex-col shadow rounded-lg overflow-hidden">
-        <div class="p-2 flex title items-center justify-between border-b">
+    <div id="ns-orders-summary" class="flex ns-box flex-auto flex-col shadow rounded-lg overflow-hidden">
+        <div class="p-2 flex title ns-box-header items-center justify-between border-b">
             <h3 class="font-semibold">{{ __( 'Recents Orders' ) }}</h3>
-            <div>
-                <ns-close-button @click="$emit( 'onRemove' )"></ns-close-button>
+            <div class="flex justify-between">
+                <div class="px-1">
+                    <ns-icon-button class="widget-handle" className="la-expand-arrows-alt"></ns-icon-button>
+                </div>
+                <div class="px-1">
+                    <ns-close-button @click="$emit( 'onRemove' )"></ns-close-button>
+                </div>
             </div>
         </div>
         <div class="head flex-auto flex-col flex h-64 overflow-y-auto ns-scrollbar">
@@ -18,7 +23,7 @@
                 v-for="order of orders"
                 :key="order.id"
                 :class="order.payment_status === 'paid' ? 'paid-order' : 'other-order'"
-                class="border-b single-order p-2 flex justify-between">
+                class="border-b p-2 flex justify-between">
                 <div>
                     <h3 class="text-lg font-semibold">{{ __( 'Order' ) }} : {{ order.code }}</h3>
                     <div class="flex -mx-2">
@@ -54,20 +59,29 @@ export default {
     data() {
         return {
             orders: [],
-            subscription: null,
             hasLoaded: false,
         }
     },
     mounted() {
-        this.hasLoaded      =   false;
-        this.subscription   =   Dashboard.recentOrders.subscribe( orders => {
-            this.hasLoaded  =   true;
-            this.orders     =   orders;
-        });
+        this.loadReport();
     },
-    methods: { __, nsCurrency },
-    unmounted() {
-        this.subscription.unsubscribe();
-    }
+    methods: { 
+        __, 
+        nsCurrency,
+        loadReport() {
+            this.hasLoaded      =   false;
+            nsHttpClient.get( '/api/dashboard/recent-orders' )
+                .subscribe({
+                    next: orders => {
+                        this.orders     =   orders;
+                        this.hasLoaded  = true;
+                    },
+                    error: error => {
+                        this.orders     =   [];
+                        this.hasLoaded  =   true;
+                    }
+                })
+        }
+    },
 }
 </script>

@@ -2,10 +2,10 @@
 
 namespace App\Services\Helpers;
 
+use App\Classes\Cache;
 use App\Classes\Hook;
 use Exception;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -41,7 +41,7 @@ trait App
         $storeName = ns()->option->get( 'ns_store_name' ) ?: 'NexoPOS';
 
         return sprintf(
-            Hook::filter( 'ns-page-title', __( '%s &mdash; %s' ) ),
+            Hook::filter( 'ns-page-title', __( '%s — %s' ) ),
             $string,
             $storeName
         );
@@ -126,5 +126,24 @@ trait App
         }
 
         return url()->previous();
+    }
+
+    /**
+     * Swap arguments in a string
+     *
+     * @param  string $string
+     * @param  array  $arguments
+     * @return string
+     */
+    public function swapArguments( $string, $arguments = [] )
+    {
+        // we'll replace any template argument by it's value
+        // the template looks like {argument}
+
+        foreach ( $arguments as $key => $value ) {
+            $string = str_replace( '{' . $key . '}', $value, $string );
+        }
+
+        return $string;
     }
 }

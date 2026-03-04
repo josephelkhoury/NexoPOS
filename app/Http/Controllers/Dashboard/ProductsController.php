@@ -9,10 +9,10 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Classes\Hook;
-use App\Classes\Output;
 use App\Crud\ProductCrud;
 use App\Crud\ProductHistoryCrud;
 use App\Crud\ProductUnitQuantitiesCrud;
+use App\Crud\ScaleRangeCrud;
 use App\Crud\UnitCrud;
 use App\Exceptions\NotAllowedException;
 use App\Exceptions\NotFoundException;
@@ -22,6 +22,7 @@ use App\Models\ProcurementProduct;
 use App\Models\Product;
 use App\Models\ProductHistory;
 use App\Models\ProductUnitQuantity;
+use App\Models\ScaleRange;
 use App\Models\Unit;
 use App\Services\DateService;
 use App\Services\Helper;
@@ -316,14 +317,6 @@ class ProductsController extends DashboardController
 
     public function listProducts()
     {
-        ns()->restrict( [ 'nexopos.read.products' ] );
-
-        Hook::addAction( 'ns-crud-footer', function ( Output $output ) {
-            $output->addView( 'pages.dashboard.products.quantity-popup' );
-
-            return $output;
-        } );
-
         return ProductCrud::table();
     }
 
@@ -335,6 +328,8 @@ class ProductsController extends DashboardController
             'title' => __( 'Edit a product' ),
             'description' => __( 'Makes modifications to a product' ),
             'submitUrl' => ns()->url( '/api/products/' . $product->id ),
+            'unitSrc' => ns()->url( '/api/crud/ns.units/form-config' ),
+            'unitSubmitUrl' => ns()->url( '/api/crud/ns.units' ),
             'returnUrl' => ns()->url( '/dashboard/products' ),
             'unitsUrl' => ns()->url( '/api/units-groups/{id}/units' ),
             'optionAttributes' => json_encode( UnitCrud::getFormConfig()[ 'optionAttributes' ] ),
@@ -351,6 +346,8 @@ class ProductsController extends DashboardController
             'title' => __( 'Create a product' ),
             'description' => __( 'Add a new product on the system' ),
             'submitUrl' => ns()->url( '/api/products' ),
+            'unitSrc' => ns()->url( '/api/crud/ns.units/form-config' ),
+            'unitSubmitUrl' => ns()->url( '/api/crud/ns.units' ),
             'returnUrl' => ns()->url( '/dashboard/products' ),
             'unitsUrl' => ns()->url( '/api/units-groups/{id}/units' ),
             'optionAttributes' => json_encode( UnitCrud::getFormConfig()[ 'optionAttributes' ] ),
@@ -381,12 +378,6 @@ class ProductsController extends DashboardController
      */
     public function productHistory( $identifier )
     {
-        Hook::addAction( 'ns-crud-footer', function ( Output $output, $identifier ) {
-            $output->addView( 'pages.dashboard.products.history' );
-
-            return $output;
-        }, 10, 2 );
-
         $product = Product::find( $identifier );
 
         return ProductHistoryCrud::table( [
@@ -539,6 +530,45 @@ class ProductsController extends DashboardController
 
     public function searchUsingArgument( $reference )
     {
+        // Check if this is a scale barcode
+        $scaleData = null;
+        if ( $this->productService->isScaleBarcode( $reference ) ) {
+            try {
+                $scaleData = $this->productService->parseScaleBarcode( $reference );
+                // The product_code from scale barcode is actually the PLU
+                $plu = $scaleData['product_code'];
+
+                // Find the product unit quantity by PLU
+                $unitQuantity = ProductUnitQuantity::where( 'scale_plu', $plu )
+                    ->with( 'product', 'unit' )
+                    ->first();
+
+                if ( $unitQuantity && $unitQuantity->product ) {
+                    $product = Product::find( $unitQuantity->product_id );
+                    $product->load( 'unit_quantities.unit', 'tax_group.taxes' );
+
+                    return [
+                        'type' => 'product',
+                        'unit' => $unitQuantity->unit,
+                        'unitQuantity' => $unitQuantity,
+                        'product' => $product->toArray(),
+                        'scale' => $scaleData,
+                    ];
+                }
+
+                // If PLU not found, throw an error
+                throw new NotFoundException(
+                    sprintf(
+                        __( 'No product found with PLU code: %s' ),
+                        $plu
+                    )
+                );
+            } catch ( Exception $e ) {
+                // If parsing fails or product not found, throw the exception
+                throw $e;
+            }
+        }
+
         $procurementProduct = ProcurementProduct::barcode( $reference )->first();
         $productUnitQuantity = ProductUnitQuantity::barcode( $reference )->with( 'unit' )->first();
         $product = Product::barcode( $reference )
@@ -581,7 +611,7 @@ class ProductsController extends DashboardController
             $product->load( 'unit_quantities.unit' );
             $product->load( 'tax_group.taxes' );
 
-            if ( $product->accurate_tracking ) {
+            if ( $product->accurate_tracking && ! $scaleData ) {
                 throw new NotAllowedException( __( 'Unable to add a product that has accurate tracking enabled, using an ordinary barcode.' ) );
             }
         }
@@ -611,5 +641,43 @@ class ProductsController extends DashboardController
 
             return $procurementProduct;
         } );
+    }
+
+    public function getScaleRange()
+    {
+        return ScaleRangeCrud::table();
+    }
+
+    public function createScaleRange()
+    {
+        return ScaleRangeCrud::form();
+    }
+
+    public function editScaleRange( ScaleRange $scaleRange )
+    {
+        return ScaleRangeCrud::form( $scaleRange );
+    }
+
+    /**
+     * Reorder products
+     *
+     * @return array
+     */
+    public function reorderProducts( Request $request )
+    {
+        $items = $request->input( 'items', [] );
+
+        foreach ( $items as $index => $item ) {
+            $product = Product::find( $item['id'] );
+            if ( $product instanceof Product ) {
+                $product->position = $index;
+                $product->save();
+            }
+        }
+
+        return [
+            'status' => 'success',
+            'message' => __( 'Products have been successfully reordered.' ),
+        ];
     }
 }

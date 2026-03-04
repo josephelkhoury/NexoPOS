@@ -1,5 +1,5 @@
 <template>
-    <div class="shadow-lg ns-box w-95vw md:w-3/5-screen lg:w-2/5-screen">
+    <div class="shadow-lg ns-box w-95vw md:w-[60vw] lg:w-[40vw]">
         <div class="p-2 flex justify-between items-center border-b ns-box-header">
             <h3 class="font-bold">{{ __( 'Order Note' ) }}</h3>
             <div>
@@ -74,7 +74,7 @@ export default {
                 const errors    =   this.validation.validateFieldsErrors( this.fields );
                 this.validation.triggerFieldsErrors( this.fields, errors );
                 this.$forceUpdate();
-                return nsSnackBar.error( __( 'Unable to proceed the form is not valid.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed the form is not valid.' ) );
             }
 
             return this.popupResolver( this.validation.extractFields( this.fields ) );

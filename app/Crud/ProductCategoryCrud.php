@@ -7,6 +7,8 @@ use App\Events\ProductCategoryAfterUpdatedEvent;
 use App\Events\ProductCategoryBeforeDeletedEvent;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ScaleRange;
+use App\Models\User;
 use App\Services\CrudEntry;
 use App\Services\CrudService;
 use App\Services\Helper;
@@ -52,7 +54,9 @@ class ProductCategoryCrud extends CrudService
      * Adding relation
      */
     public $relations = [
-        [ 'nexopos_users as user', 'nexopos_products_categories.author', '=', 'user.id' ],
+        'join' => [
+            'user' => [ User::class, 'author' ],
+        ],
         'leftJoin' => [
             [ 'nexopos_products_categories as parent', 'nexopos_products_categories.parent_id', '=', 'parent.id' ],
         ],
@@ -87,7 +91,15 @@ class ProductCategoryCrud extends CrudService
     /**
      * Fields which will be filled during post/put
      */
-    public $fillable = [];
+    public $fillable = [
+        'name',
+        'preview_url',
+        'description',
+        'parent_id',
+        'displays_on_pos',
+        'scale_range_id',
+        'author',
+    ];
 
     /**
      * Define Constructor
@@ -141,6 +153,23 @@ class ProductCategoryCrud extends CrudService
             'name' => __( 'No Parent' ),
         ] );
 
+        // Get scale ranges for PLU assignment
+        $scaleRanges = ScaleRange::all();
+        $scaleRangeOptions = $scaleRanges->map( function ( $range ) {
+            return [
+                'label' => sprintf(
+                    '%s (%s-%s)',
+                    $range->name,
+                    $range->range_start,
+                    $range->range_end
+                ),
+                'value' => $range->id,
+            ];
+        } )->prepend( [
+            'label' => __( 'No PLU Range' ),
+            'value' => '',
+        ] )->toArray();
+
         return [
             'main' => [
                 'label' => __( 'Name' ),
@@ -175,6 +204,13 @@ class ProductCategoryCrud extends CrudService
                             'description' => __( 'If this category should be a child category of an existing category' ),
                             'value' => $entry->parent_id ?? '',
                         ], [
+                            'type' => 'select',
+                            'options' => $scaleRangeOptions,
+                            'name' => 'scale_range_id',
+                            'label' => __( 'PLU Range' ),
+                            'description' => __( 'Select a PLU range to automatically assign PLU codes to weighable products in this category.' ),
+                            'value' => $entry->scale_range_id ?? '',
+                        ], [
                             'type' => 'ckeditor',
                             'name' => 'description',
                             'label' => __( 'Description' ),
@@ -190,7 +226,6 @@ class ProductCategoryCrud extends CrudService
      * Filter POST input fields
      *
      * @param  array of fields
-     * @return array of fields
      */
     public function filterPostInputs( $inputs )
     {
@@ -201,7 +236,6 @@ class ProductCategoryCrud extends CrudService
      * Filter PUT input fields
      *
      * @param  array of fields
-     * @return array of fields
      */
     public function filterPutInputs( $inputs, ProductCategory $entry )
     {
@@ -435,6 +469,16 @@ class ProductCategoryCrud extends CrudService
             'post' => ns()->url( 'api/crud/' . 'ns.products-categories' ),
             'put' => ns()->url( 'api/crud/' . 'ns.products-categories/{id}' . '' ),
         ];
+    }
+
+    /**
+     * Get Header Buttons
+     *
+     * @return array of header buttons
+     */
+    public function getHeaderButtons(): array
+    {
+        return [ 'nsReorderButton' ];
     }
 
     /**

@@ -1,7 +1,7 @@
 <template>
     <div>
-        <div class="shadow-lg w-95vw md:w-3/5-screen ns-box" v-if="loaded">
-            <div class="border-b ns-box-header p-2 text-primary flex justify-between items-center">
+        <div class="shadow-lg w-[95vw] md:w-[60vw] ns-box" v-if="loaded">
+            <div class="border-b ns-box-header p-2 text-fontcolor flex justify-between items-center">
                 <h3 class="font-semibold">{{ title }}</h3>
                 <div><ns-close-button @click="close()"></ns-close-button></div>
             </div>
@@ -11,7 +11,7 @@
                         <span>{{ __( 'Balance' ) }} </span>
                         <span>{{ nsCurrency( register.balance ) }}</span>
                     </div>
-                    <div class="mb-2 p-3 elevation-surface success border font-bold text-right flex justify-between">
+                    <div class="mb-2 p-3 bg-success-primary border-success-tertiary border font-bold text-right flex justify-between">
                         <span>{{ __( 'Input' ) }}</span>
                         <span>{{ nsCurrency( amount ) }}</span>
                     </div>
@@ -93,7 +93,7 @@ export default {
                     this.fields     =   result;
                 }, ( error ) => {
                     this.loaded     =   true;
-                    return nsSnackBar.error( error.message, __( 'OKAY' ), { duration : false }).subscribe();
+                    return nsSnackBar.error( error.message, __( 'OKAY' ), { duration : false });
                 });            
         },
         submit( amount ) {
@@ -113,7 +113,7 @@ export default {
             }
 
             if ( this.validation.validateFields( this.fields ) === false ) {
-                return nsSnackBar.error( __( 'Please fill all required fields' )).subscribe();
+                return nsSnackBar.error( __( 'Please fill all required fields' ));
             }
 
             this.isSubmitting    =   true;
@@ -128,11 +128,11 @@ export default {
                     next: result => {
                         this.popup.params.resolve( result );
                         this.popup.close();
-                        nsSnackBar.success( result.message ).subscribe();
+                        nsSnackBar.success( result.message );
                         this.isSubmitting    =   false;
                     }, 
                     error: ( error ) => {
-                        nsSnackBar.error( error.message ).subscribe();
+                        nsSnackBar.error( error.message );
                         this.isSubmitting    =   false;
                     }
                 });

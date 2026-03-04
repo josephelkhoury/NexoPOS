@@ -1,10 +1,15 @@
 <template>
-    <div class="flex flex-col mb-2 flex-auto ns-input">
-        <label v-if="field.label && ( field.label.length > 0)" :for="field.name" :class="hasError ? 'has-error' : 'is-pristine'" class="block leading-5 font-medium"><slot></slot></label>
-        <div :class="( hasError ? 'has-error' : 'is-pristine' ) + ` ` + ( field.description || field.errors > 0 ? 'mb-2' : ''  )" class="mt-1 relative overflow-hidden border-2 rounded-md focus:shadow-sm">
+    <div class="flex flex-col mb-2 flex-auto ns-input" :class="hasError ? 'has-error' : 'is-pristine'">
+        <label v-if="field.label && ( field.label.length > 0)" :for="field.name" class="block leading-5 font-medium"><slot></slot></label>
+        <div :class="( field.description || field.errors > 0 ? 'mb-2' : ''  )" class="mt-1 relative overflow-hidden border rounded-md focus:shadow-sm">
             <div v-if="leading" class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <span class="leading sm:text-sm sm:leading-5">
                 {{ leading }}
+                </span>
+            </div>
+            <div v-if="field.prefix" class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span class="prefix sm:text-sm sm:leading-5">
+                {{ field.prefix }}
                 </span>
             </div>
             <input 
@@ -12,6 +17,11 @@
                 v-model="field.value" 
                 :id="field.name" :type="type || field.type || 'text'" 
                 :class="inputClass" class="block w-full sm:text-sm sm:leading-5 h-10" :placeholder="field.placeholder || ''" />
+            <div v-if="field.suffix" class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <span class="suffix sm:text-sm sm:leading-5">
+                {{ field.suffix }}
+                </span>
+            </div>
         </div>
         <ns-field-description :field="field"></ns-field-description>
     </div>

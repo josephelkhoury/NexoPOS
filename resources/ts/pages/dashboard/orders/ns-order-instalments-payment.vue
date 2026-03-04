@@ -1,5 +1,5 @@
 <template>
-    <div class="shadow-lg ns-box w-95vw md:w-2/3-screen lg:w-1/3-screen">
+    <div class="shadow-lg ns-box w-95vw md:w-[66.67vw] lg:w-[33.33vw]">
         <div class="p-2 flex justify-between border-b items-center">
             <h3>{{ __( 'Payment Method' ) }}</h3>
             <div>
@@ -7,7 +7,7 @@
             </div>
         </div>
         <div class="p-2 ns-box-body">
-            <ns-notice color="info" class="py-2 p-4 text-center border text-primary rounded-lg">{{ __( 'Before submitting the payment, choose the payment type used for that order.' ) }}</ns-notice>
+            <ns-notice color="info" class="py-2 p-4 text-center border text-fontcolor rounded-lg">{{ __( 'Before submitting the payment, choose the payment type used for that order.' ) }}</ns-notice>
             <br>
             <ns-field :key="index" v-for="(field,index) of fields" :field="field"></ns-field>
         </div>
@@ -70,7 +70,7 @@ export default {
                     this.submitPayment();
                 },
                 error: error => {
-                    nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) ).subscribe();
+                    nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) );
                 }
             })
         },
@@ -88,7 +88,7 @@ export default {
                         this.popupResolver( true );
                         this.print.exec( result.data.payment.id, 'payment' );
 
-                        nsSnackBar.success( result.message ).subscribe();
+                        nsSnackBar.success( result.message );
                     },
                     error: error => {
                         if ( error.status === 'error' ) {
@@ -103,7 +103,7 @@ export default {
                             });
                         }
 
-                        nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) ).subscribe();
+                        nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) );
                     }
                 })
         }

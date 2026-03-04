@@ -105,9 +105,6 @@ class Order extends NsModel
 
     const DELIVERY_FAILED = 'error';
 
-    // @todo check if it's still useful
-    const DELIVERY_COMPLETED = 'completed';
-
     const DELIVERY_DELIVERED = 'delivered';
 
     public $casts = [
@@ -205,6 +202,16 @@ class Order extends NsModel
         return $this->hasOne( OrderBillingAddress::class );
     }
 
+    public function driver()
+    {
+        return $this->belongsTo( Driver::class, 'driver_id' );
+    }
+
+    public function driverEarning()
+    {
+        return $this->hasOne( DriverEarning::class, 'order_id' );
+    }
+
     public function order_addresses()
     {
         return $this->hasMany( OrderAddress::class );
@@ -213,6 +220,11 @@ class Order extends NsModel
     public function settings()
     {
         return $this->hasMany( OrderSetting::class, 'order_id' );
+    }
+
+    public function deliveryProof()
+    {
+        return $this->hasOne( OrderDeliveryProof::class, 'order_id' );
     }
 
     public function scopeFrom( $query, $range_starts )

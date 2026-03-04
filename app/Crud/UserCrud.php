@@ -21,7 +21,6 @@ use App\Services\Helper;
 use App\Services\Options;
 use App\Services\UsersService;
 use Carbon\Carbon;
-use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -665,6 +664,7 @@ class UserCrud extends CrudService
         $entry->action(
             identifier: 'edit_customers_group',
             label: __( 'Edit' ),
+            permissions: [ 'update.users' ],
             url: ns()->url( 'dashboard/users/edit/' . $entry->id ),
         );
 
@@ -729,17 +729,13 @@ class UserCrud extends CrudService
         }
 
         if ( $request->input( 'action' ) == 'delete_selected' ) {
+
+            $this->allowedTo( 'delete' );
+
             $status = [
                 'success' => 0,
                 'error' => 0,
             ];
-
-            /**
-             * @temp
-             */
-            if ( Auth::user()->role->namespace !== 'admin' ) {
-                throw new Exception( __( 'Access Denied' ) );
-            }
 
             foreach ( $request->input( 'entries' ) as $id ) {
                 $entity = $this->model::find( $id );
@@ -782,7 +778,7 @@ class UserCrud extends CrudService
     {
         return Hook::filter( $this->namespace . '-bulk', [
             [
-                'label' => __( 'Delete Selected Groups' ),
+                'label' => __( 'Delete Selected Users' ),
                 'identifier' => 'delete_selected',
                 'url' => ns()->route( 'ns.api.crud-bulk-actions', [
                     'namespace' => $this->namespace,

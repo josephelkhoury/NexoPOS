@@ -21,10 +21,10 @@
                     </div>
                 </div>
                 <div class="-mx-4 flex flex-wrap p-2">
-                    <template v-if="activeTab.fields">
+                    <template v-if="activeTab.fields && ! activeTab.component">
                         <div class="w-full px-4 md:w-1/2 lg:w-1/3" v-bind:key="index" v-for="( field, index ) of activeTab.fields">
                             <div class="flex flex-col my-2">
-                                <ns-field @saved="handleSaved( $event, field )" :field="field"></ns-field>
+                                <ns-field @saved="handleSaved( $event, field )" :siblings="activeTab.fields.filter( _field => _field.name !== field.name )" :field="field"></ns-field>
                             </div>
                         </div>
                     </template>
@@ -41,7 +41,7 @@
                         </template>
                     </div>
                     <div>
-                        <ns-button :disabled="isSubmitting" @click="submitForm()" type="info"><slot name="submit-button">{{ __( 'Save Settings' ) }}</slot></ns-button>
+                        <ns-button :disabled="isSubmitting" @click="submitForm()"><slot name="submit-button">{{ __( 'Save Settings' ) }}</slot></ns-button>
                     </div>
                 </div>
             </div>
@@ -124,9 +124,10 @@ export default {
             }
         },
         async submitForm() {
-            if ( this.validation.validateForm( this.form ).length > 0 ) {
-                return nsSnackBar.error( __( 'Unable to proceed the form is not valid.' ) )
-                    .subscribe();
+            const validation = this.validation.validateForm( this.form );
+            if ( validation.length > 0 ) {
+                console.log( validation );
+                return nsSnackBar.error( __( 'Unable to proceed the form is not valid.' ) );
             }
             
             this.validation.disableForm( this.form );
@@ -162,15 +163,15 @@ export default {
                 if ( result.data && result.data.results ) {
                     result.data.results.forEach( response => {
                         if ( response.status === 'error' ) {
-                            nsSnackBar.error( response.message ).subscribe();
+                            nsSnackBar.error( response.message );
                         } else {
-                            nsSnackBar.success( response.message ).subscribe();
+                            nsSnackBar.success( response.message );
                         }
                     });
                 }
 
                 nsHooks.doAction( 'ns-settings-saved', { result, instance: this });
-                nsSnackBar.success( result.message ).subscribe();
+                nsSnackBar.success( result.message );
 
             } catch( error ) {
                 this.validation.enableForm( this.form );
@@ -179,8 +180,7 @@ export default {
                 nsHooks.doAction( 'ns-settings-failed', { error, instance: this });
 
                 if ( error.message ) {
-                    nsSnackBar.error( error.message || __( 'Unable to proceed the form is not valid.' ) )
-                        .subscribe();
+                    nsSnackBar.error( error.message || __( 'Unable to proceed the form is not valid.' ) );
                 }
             }                
         },
@@ -253,7 +253,7 @@ export default {
                         nsHooks.doAction( 'ns-settings-change-tab', { tab : this.activeTab, instance: this, identifier: activeTabIdentifier });
                     },
                     error : error => {
-                        nsSnackBar.error( error.message ).subscribe();
+                        nsSnackBar.error( error.message );
                         reject( error );
                     }
                 });

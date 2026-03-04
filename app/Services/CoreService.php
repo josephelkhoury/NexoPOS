@@ -15,6 +15,7 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
@@ -28,6 +29,8 @@ class CoreService
     public $isMultistore = false;
 
     public $storeID;
+
+    public Options $rootOption;
 
     /**
      * @var \Modules\NsMultiStore\Services\StoresService
@@ -71,9 +74,15 @@ class CoreService
      * Returns a filtred URL to which
      * apply the filter "ns-url" hook.
      */
-    public function url( ?string $url = null ): string
+    public function url( ?string $url = null, $params = [] ): string
     {
-        return url( Hook::filter( 'ns-url', $url ) );
+        $url = url( Hook::filter( 'ns-url', $url ) );
+
+        return preg_replace_callback( '/\{(\w+)\}/', function ( $matches ) use ( $params ) {
+            $key = $matches[1];
+
+            return isset( $params[$key] ) ? $params[$key] : $matches[0];
+        }, $url );
     }
 
     /**
@@ -322,23 +331,102 @@ class CoreService
         }
     }
 
+    public function checkModulesSymbolicLinks(): void
+    {
+        /**
+         * @var ModulesService $moduleService
+         */
+        $moduleService = app()->make( ModulesService::class );
+
+        /**
+         * @var NotificationService $notificationService
+         */
+        $notificationService = app()->make( NotificationService::class );
+
+        $modules = $moduleService->get();
+
+        foreach ( $modules as $module ) {
+            $tolowercase = strtolower( $module[ 'namespace' ] );
+
+            // we'll check if a symbolic exist for each module
+            if ( ! file_exists( public_path( 'modules/' . $tolowercase ) ) ) {
+                $notification = Notification::where( 'identifier', 'symlink-' . $tolowercase )->first();
+
+                if ( ! $notification instanceof Notification ) {
+                    $notificationService->create(
+                        title: sprintf( __( '%s: Symbolic Link Missing' ), $module[ 'name' ] ),
+                        identifier: 'symlink-' . $tolowercase,
+                        source: 'system',
+                        url: 'https://my.nexopos.com/en/documentation/troubleshooting/broken-media-images?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
+                        description: sprintf(
+                            __( 'The symbolic link for the module %s is missing. Your medias might be broken and not display.' ),
+                            $module[ 'name' ]
+                        ),
+                        actions: [
+                            [
+                                'label' => __( 'Create Symbolic Link' ),
+                                'url' => ns()->route( 'ns.dashboard.modules-symlink', [ 'namespace' => $tolowercase ] ),
+                                'data' => compact( 'module' ),
+                            ],
+                        ]
+                    )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
+                }
+            }
+
+            /**
+             * We'll check if the links is broken
+             */
+            if ( ! is_link( public_path( 'modules/' . $tolowercase ) ) ) {
+                $notification = Notification::where( 'identifier', 'symlink-' . $tolowercase )->first();
+
+                if ( ! $notification instanceof Notification ) {
+                    $notificationService->create(
+                        title: sprintf( __( '%s: Symbolic Link Broken' ), $module[ 'name' ] ),
+                        identifier: 'symlink-' . $tolowercase,
+                        source: 'system',
+                        url: 'https://my.nexopos.com/en/documentation/troubleshooting/broken-media-images?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
+                        description: sprintf(
+                            __( 'The symbolic link for the module %s is broken. The module assets might not load correctly.' ),
+                            $module[ 'name' ]
+                        ),
+                        actions: [
+                            [
+                                'label' => __( 'Fix Symbolic Link' ),
+                                'url' => ns()->route( 'ns.dashboard.modules-symlink', [ 'namespace' => $tolowercase ] ),
+                                'data' => compact( 'module' ),
+                            ],
+                        ]
+                    )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
+                }
+            }
+        }
+    }
+
     public function checkSymbolicLinks(): void
     {
         if ( ! file_exists( public_path( 'storage' ) ) ) {
             $notification = Notification::where( 'identifier', NotificationsEnum::NSSYMBOLICLINKSMISSING )
+                ->where( 'user_id', Auth::id() )
                 ->first();
 
             if ( ! $notification instanceof Notification ) {
                 ns()->option->set( 'ns_has_symbolic_links_missing_notifications', true );
 
                 $notification = app()->make( NotificationService::class );
-                $notification->create( [
-                    'title' => __( 'Symbolic Links Missing' ),
-                    'identifier' => NotificationsEnum::NSSYMBOLICLINKSMISSING,
-                    'source' => 'system',
-                    'url' => 'https://my.nexopos.com/en/documentation/troubleshooting/broken-media-images?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
-                    'description' => __( 'The Symbolic Links to the public directory is missing. Your medias might be broken and not display.' ),
-                ] )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
+                $notification->create(
+                    title: __( 'Symbolic Links Missing' ),
+                    identifier: NotificationsEnum::NSSYMBOLICLINKSMISSING,
+                    source: 'system',
+                    url: 'https://my.nexopos.com/en/documentation/troubleshooting/broken-media-images?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
+                    description: __( 'The Symbolic Links to the public directory is missing. Your medias might be broken and not display.' ),
+                    actions: [
+                        [
+                            'label' => __( 'Fix it' ),
+                            'url' => route( 'ns.dashboard.system.fix-symbolic-links' ),
+                            'type' => 'primary',
+                        ],
+                    ]
+                )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
             }
         } else {
             /**
@@ -358,13 +446,13 @@ class CoreService
     private function emitCronMisconfigurationNotification(): void
     {
         $notification = app()->make( NotificationService::class );
-        $notification->create( [
-            'title' => __( 'Cron Disabled' ),
-            'identifier' => NotificationsEnum::NSCRONDISABLED,
-            'source' => 'system',
-            'url' => 'https://my.nexopos.com/en/documentation/troubleshooting/workers-or-async-requests-disabled?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
-            'description' => __( "Cron jobs aren't configured correctly on NexoPOS. This might restrict necessary features. Click here to learn how to fix it." ),
-        ] )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
+        $notification->create(
+            title: __( 'Cron Disabled' ),
+            identifier: NotificationsEnum::NSCRONDISABLED,
+            source: 'system',
+            url: 'https://my.nexopos.com/en/documentation/troubleshooting/workers-or-async-requests-disabled?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
+            description: __( "Cron jobs aren't configured correctly on NexoPOS. This might restrict necessary features. Click here to learn how to fix it." ),
+        )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
     }
 
     /**
@@ -374,13 +462,13 @@ class CoreService
     private function emitNotificationForTaskSchedulingMisconfigured(): void
     {
         $notification = app()->make( NotificationService::class );
-        $notification->create( [
-            'title' => __( 'Task Scheduling Disabled' ),
-            'identifier' => NotificationsEnum::NSWORKERDISABLED,
-            'source' => 'system',
-            'url' => 'https://my.nexopos.com/en/documentation/troubleshooting/workers-or-async-requests-disabled?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
-            'description' => __( 'NexoPOS is unable to schedule background tasks. This might restrict necessary features. Click here to learn how to fix it.' ),
-        ] )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
+        $notification->create(
+            title: __( 'Task Scheduling Disabled' ),
+            identifier: NotificationsEnum::NSWORKERDISABLED,
+            source: 'system',
+            url: 'https://my.nexopos.com/en/documentation/troubleshooting/workers-or-async-requests-disabled?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
+            description: __( 'NexoPOS is unable to schedule background tasks. This might restrict necessary features. Click here to learn how to fix it.' ),
+        )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
     }
 
     /**
@@ -411,7 +499,7 @@ class CoreService
      *
      * @throws NotFoundException
      */
-    public function moduleViteAssets( string $fileName, $moduleId ): string
+    public function moduleViteAssets( string $fileName, $moduleId, $options = [] ): string
     {
         $moduleService = app()->make( ModulesService::class );
         $module = $moduleService->get( $moduleId );
@@ -425,8 +513,7 @@ class CoreService
             );
         }
 
-        // we need to load the vite.config.js file
-        $viteConfigFile = $module[ 'path' ] . DIRECTORY_SEPARATOR . 'vite.config.js';
+        $viteConfigFile = $module[ 'path' ] . 'vite.config.js';
 
         if ( ! file_exists( $viteConfigFile ) ) {
             // we need to load the vite.config.mjs
@@ -442,72 +529,179 @@ class CoreService
             }
         }
 
-        $ds = DIRECTORY_SEPARATOR;
-
         /**
          * let's read the outDir value from the vite.config.js file
          */
         $viteConfig = file_get_contents( $viteConfigFile );
 
-        if ( preg_match( '/outDir:\s*[\'"](.+?)[\'"]/', $viteConfig, $matches ) ) {
-            $buildDirectory = $matches[1]; // Return the matched outDir value
-        } else {
-            $buildDirectory = 'Public' . $ds . 'build'; // Default build directory
-        }
-
-        $possiblePaths = [
-            rtrim( $module['path'], $ds ) . $ds . $buildDirectory . $ds . '.vite' . $ds . 'manifest.json',
-            rtrim( $module['path'], $ds ) . $ds . $buildDirectory . $ds . 'manifest.json',
-        ];
-
         $assets = collect( [] );
         $errors = [];
 
-        $buildFolderName = last( explode( $ds, $buildDirectory ) );
+        /**
+         * We need to define the location of the hot file. We'll start by checking if the vite.config.js file
+         * includes a hotFile variable. The location is it's value.
+         */
+        if ( preg_match( '/hotFile:\s*[\'"](.+?)[\'"]/', $viteConfig, $matches ) ) {
+            $hotFilePath = $matches[1]; // Return the matched hotFile value
+        } else {
+            $hotFilePath = 'Public' . DIRECTORY_SEPARATOR . 'hot';
+        }
 
-        foreach ( $possiblePaths as $manifestPath ) {
-            if ( ! file_exists( $manifestPath ) ) {
-                $errors[] = $manifestPath;
+        /**
+         * If the hot file is not a file. When we'll load the assets directly from the
+         * manifest.json file.
+         */
+        if ( file_exists( $module[ 'path' ] . $hotFilePath ) ) {
+            $url = file_get_contents( $module[ 'path' ] . $hotFilePath );
+            $pathinfo = pathinfo( $fileName );
 
-                continue;
-            }
-
-            $manifestArray = json_decode( file_get_contents( $manifestPath ), true );
-
-            if ( ! isset( $manifestArray[ $fileName ] ) ) {
+            if ( in_array( $pathinfo[ 'extension' ], [ 'js', 'ts', 'tsx', 'jsx' ] ) ) {
+                if ( ! isset( $options['type'] ) || $options['type'] === 'module' ) {
+                    $assets->prepend( '<script type="module" src="' . $url . '/' . $fileName . '" defer></script>' );
+                } else {
+                    $assets->prepend( '<script src="' . $url . '/' . $fileName . '"></script>' );
+                }
+            } elseif ( in_array( $pathinfo[ 'extension'], [ 'css', 'scss' ] ) ) {
+                $assets->push( '<link rel="stylesheet" href="' . $url . '/' . $fileName . '"/>' );
+            } else {
                 throw new NotFoundException(
                     sprintf(
-                        __( 'the requested file "%s" can\'t be located inside the manifest.json for the module %s.' ),
-                        $fileName,
-                        $module[ 'name' ]
+                        __( 'The requested file %s is not a valid asset.' ),
+                        $fileName
                     )
                 );
             }
+        } else {
 
-            /**
-             * checks if a css file is declared as well
-             */
-            $jsUrl = asset( 'modules/' . strtolower( $moduleId ) . '/' . $buildFolderName . '/' . $manifestArray[ $fileName ][ 'file' ] ) ?? null;
+            $ds = DIRECTORY_SEPARATOR;
 
-            if ( ! empty( $manifestArray[ $fileName ][ 'css' ] ) ) {
-                $assets = collect( $manifestArray[ $fileName ][ 'css' ] )->map( function ( $url ) use ( $moduleId, $buildFolderName ) {
-                    return '<link rel="stylesheet" href="' . asset( 'modules/' . strtolower( $moduleId ) . '/' . $buildFolderName . '/' . $url ) . '"/>';
-                } );
+            if ( preg_match( '/outDir:\s*[\'"](.+?)[\'"]/', $viteConfig, $matches ) ) {
+                $buildDirectory = $matches[1]; // Return the matched outDir value
+            } else {
+                $buildDirectory = 'Public' . $ds . 'build'; // Default build directory
             }
 
-            $assets->prepend( '<script type="module" src="' . $jsUrl . '"></script>' );
-        }
+            $possiblePaths = [
+                rtrim( $module['path'], $ds ) . $ds . $buildDirectory . $ds . '.vite' . $ds . 'manifest.json',
+                rtrim( $module['path'], $ds ) . $ds . $buildDirectory . $ds . 'manifest.json',
+            ];
 
-        if ( count( $errors ) === count( $possiblePaths ) ) {
-            throw new NotFoundException(
-                sprintf(
-                    __( 'The manifest file for the module %s wasn\'t found on all possible directories: %s.' ),
-                    $module[ 'name' ],
-                    collect( $errors )->join( ', ' ),
-                )
-            );
+            $buildFolderName = last( preg_split( '/[\/\\\\]/', $buildDirectory ) );
+
+            foreach ( $possiblePaths as $manifestPath ) {
+                if ( ! file_exists( $manifestPath ) ) {
+                    $errors[] = $manifestPath;
+
+                    continue;
+                }
+
+                $manifestArray = json_decode( file_get_contents( $manifestPath ), true );
+
+                if ( ! isset( $manifestArray[ $fileName ] ) ) {
+                    throw new NotFoundException(
+                        sprintf(
+                            __( 'the requested file "%s" can\'t be located inside the manifest.json for the module %s.' ),
+                            $fileName,
+                            $module[ 'name' ]
+                        )
+                    );
+                }
+
+                /**
+                 * checks if a css file is declared as well
+                 */
+                $assetURL = asset( 'modules/' . strtolower( $moduleId ) . '/' . $buildFolderName . '/' . $manifestArray[ $fileName ][ 'file' ] ) ?? null;
+
+                if ( ! empty( $manifestArray[ $fileName ][ 'css' ] ) ) {
+                    $assets = collect( $manifestArray[ $fileName ][ 'css' ] )->map( function ( $url ) use ( $moduleId, $buildFolderName ) {
+                        return '<link rel="stylesheet" href="' . asset( 'modules/' . strtolower( $moduleId ) . '/' . $buildFolderName . '/' . $url ) . '"/>';
+                    } );
+                }
+
+                $pathinfo = pathinfo( $assetURL );
+
+                if ( in_array( $pathinfo[ 'extension' ], [ 'js', 'ts', 'tsx', 'jsx' ] ) ) {
+                    $assets->prepend( '<script type="module" src="' . $assetURL . '"></script>' );
+                } elseif ( in_array( $pathinfo[ 'extension'], [ 'css', 'scss' ] ) ) {
+                    $assets->push( '<link rel="stylesheet" href="' . $assetURL . '"/>' );
+                } else {
+                    throw new NotFoundException(
+                        sprintf(
+                            __( 'The requested file %s is not a valid asset.' ),
+                            $fileName
+                        )
+                    );
+                }
+            }
+
+            if ( count( $errors ) === count( $possiblePaths ) ) {
+                throw new NotFoundException(
+                    sprintf(
+                        __( 'The manifest file for the module %s wasn\'t found on all possible directories: %s.' ),
+                        $module[ 'name' ],
+                        collect( $errors )->join( ', ' ),
+                    )
+                );
+            }
         }
 
         return $assets->flatten()->join( '' );
+    }
+
+    public function createSymbolicLinks(): void
+    {
+        // we'll first delete any symbolic links that might exists
+        if ( file_exists( public_path( 'storage' ) ) ) {
+            @unlink( public_path( 'storage' ) );
+        }
+
+        // We'll create a symbolic link using the command line
+        Artisan::call( 'storage:link' );
+    }
+
+    public function checkPublicModulesDirectoryPermissions()
+    {
+        $publicModulesPath = public_path( 'modules' );
+
+        // Check if the directory exists
+        if ( ! is_dir( $publicModulesPath ) ) {
+            return;
+        }
+
+        // Get current permissions
+        $permissions = fileperms( $publicModulesPath );
+        $octalPermissions = substr( sprintf( '%o', $permissions ), -4 );
+
+        // Check if permissions are not 0755
+        if ( $octalPermissions !== '0755' ) {
+            /**
+             * @var NotificationService $notificationService
+             */
+            $notificationService = app()->make( NotificationService::class );
+            $notification = Notification::where( 'identifier', 'public-modules-permissions' )->first();
+
+            if ( ! $notification instanceof Notification ) {
+                $notificationService->create(
+                    title: __( 'Public Modules Directory: Incorrect Permissions' ),
+                    identifier: 'public-modules-permissions',
+                    source: 'system',
+                    url: 'https://my.nexopos.com/en/documentation/troubleshooting/module-permissions?utm_source=nexopos&utm_campaign=warning&utm_medium=app',
+                    description: sprintf(
+                        __( 'The public/modules directory has incorrect permissions (%s instead of 0755). This may cause issues with module assets loading.' ),
+                        $octalPermissions
+                    ),
+                    actions: [
+                        [
+                            'label' => __( 'Fix Permissions' ),
+                            'url' => ns()->route( 'ns.dashboard.modules-fix-permissions' ),
+                            'data' => [],
+                        ],
+                    ]
+                )->dispatchForGroup( Role::namespace( Role::ADMIN ) );
+            }
+        } else {
+            // If permissions are correct, delete any existing notification
+            Notification::where( 'identifier', 'public-modules-permissions' )->delete();
+        }
     }
 }

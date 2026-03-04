@@ -1,7 +1,7 @@
 <template>
-    <div class="w-6/7-screen md:w-4/7-screen lg:w-3/7-screen flex flex-col shadow-lg ns-box">
+    <div class="w-[85.71vw] md:w-[57.14vw] lg:w-[42.86vw] flex flex-col shadow-lg ns-box">
         <div class="ns-box-header p-2 border-b flex justify-between items-center">
-            <h3 class="font-bold text-xl">{{ __( 'Expense Type' ) }}</h3>
+            <h3>{{ __( 'Expense Type' ) }}</h3>
         </div>
         <div class="p-2" v-if="warningMessage">
             <ns-notice color="info">

@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Exception;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Collection;
 
 /**
@@ -46,6 +46,11 @@ class Role extends NsRootModel
      */
     const USER = 'user';
 
+    /**
+     * We're introducing driver role
+     */
+    const DRIVER = 'nexopos.driver';
+
     protected $cats = [
         'locked' => 'boolean',
     ];
@@ -70,9 +75,16 @@ class Role extends NsRootModel
     /**
      * Relation with Permissions
      **/
-    public function permissions(): BelongsToMany
+    public function permissions(): HasManyThrough
     {
-        return $this->belongsToMany( Permission::class, 'nexopos_role_permission' );
+        return $this->hasManyThrough(
+            Permission::class,
+            RolePermission::class,
+            'role_id',
+            'id',
+            'id',
+            'permission_id',
+        );
     }
 
     public function scopeWithNamespace( $query, $param )

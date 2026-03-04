@@ -10,8 +10,10 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Requests\ModuleUploadRequest;
+use App\Models\Notification;
 use App\Services\DateService;
 use App\Services\ModulesService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\View;
@@ -58,9 +60,6 @@ class ModulesController extends DashboardController
     public function getModules( $argument = '' )
     {
         switch ( $argument ) {
-            case '':
-                $list = $this->modules->get();
-                break;
             case 'enabled':
                 $list = $this->modules->getEnabled();
                 break;
@@ -69,6 +68,10 @@ class ModulesController extends DashboardController
                 break;
             case 'invalid':
                 $list = $this->modules->getInvalid();
+                break;
+            case '':
+            default:
+                $list = $this->modules->get();
                 break;
         }
 
@@ -139,6 +142,53 @@ class ModulesController extends DashboardController
                 return redirect( ns()->route( 'ns.dashboard.modules-upload' ) )->withErrors( $validator );
             }
         }
+    }
 
+    public function createSymlink( Request $request )
+    {
+        $module = $request->input( 'module' );
+
+        if ( ! $module ) {
+            return response()->json( [
+                'status' => 'error',
+                'message' => __( 'Module not specified.' ),
+            ], 400 );
+        }
+
+        $this->modules->createSymlink( $module[ 'namespace' ] );
+
+        Notification::find( $request->query( 'notification_id' ) )->delete();
+
+        return response()->json( [
+            'status' => 'success',
+            'message' => __( 'Symbolic link created successfully.' ),
+        ] );
+    }
+
+    /**
+     * Fix the permissions of the public/modules directory
+     *
+     * @return JsonResponse
+     */
+    public function fixPublicModulesPermissions( Request $request )
+    {
+        try {
+            $this->modules->fixPublicModulesDirectoryPermissions();
+
+            // Delete the notification if it exists
+            if ( $request->query( 'notification_id' ) ) {
+                Notification::find( $request->query( 'notification_id' ) )->delete();
+            }
+
+            return response()->json( [
+                'status' => 'success',
+                'message' => __( 'Directory permissions fixed successfully.' ),
+            ] );
+        } catch ( \Exception $e ) {
+            return response()->json( [
+                'status' => 'error',
+                'message' => sprintf( __( 'Failed to fix permissions: %s' ), $e->getMessage() ),
+            ], 500 );
+        }
     }
 }

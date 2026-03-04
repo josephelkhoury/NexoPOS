@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Classes\Cache;
 use App\Classes\Currency;
 use App\Classes\Hook;
 use App\Events\DueOrdersEvent;
@@ -25,6 +26,7 @@ use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\CustomerAccountHistory;
 use App\Models\CustomerCoupon;
+use App\Models\Driver;
 use App\Models\Notification;
 use App\Models\Order;
 use App\Models\OrderAddress;
@@ -50,7 +52,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use stdClass;
@@ -1170,14 +1171,18 @@ class OrdersService
 
             $this->computeOrderProduct( $orderProduct, $product );
 
-            if ( ns()->option->get( 'ns_pos_price_with_tax' ) === 'no' ) {
-                $subTotal = $this->currencyService->define( $subTotal )
-                    ->additionateBy( $orderProduct->total_price_with_tax )
-                    ->get();
+            if ( ns()->option->get( 'ns_pos_vat' ) === 'disabled' ) {
+                $subTotal = $order->subtotal;
             } else {
-                $subTotal = $this->currencyService->define( $subTotal )
-                    ->additionateBy( $orderProduct->total_price )
-                    ->get();
+                if ( ns()->option->get( 'ns_pos_price_with_tax' ) === 'no' ) {
+                    $subTotal = $this->currencyService->define( $subTotal )
+                        ->additionateBy( $orderProduct->total_price_with_tax )
+                        ->get();
+                } else {
+                    $subTotal = $this->currencyService->define( $subTotal )
+                        ->additionateBy( $orderProduct->total_price )
+                        ->get();
+                }
             }
 
             return $orderProduct;
@@ -1498,20 +1503,20 @@ class OrdersService
     {
         $now = Carbon::parse( $order->created_at );
         $today = $now->toDateString();
-        $count = DB::table( 'nexopos_orders_count' )
+        $count = DB::table( Hook::filter( 'ns-model-table', 'nexopos_orders_count' ) )
             ->where( 'date', $today )
             ->value( 'count' );
 
         if ( $count === null ) {
             $count = 1;
-            DB::table( 'nexopos_orders_count' )
+            DB::table( Hook::filter( 'ns-model-table', 'nexopos_orders_count' ) )
                 ->insert( [
                     'date' => $today,
                     'count' => $count,
                 ] );
         }
 
-        DB::table( 'nexopos_orders_count' )
+        DB::table( Hook::filter( 'ns-model-table', 'nexopos_orders_count' ) )
             ->where( 'date', $today )
             ->increment( 'count' );
 
@@ -1580,6 +1585,14 @@ class OrdersService
         $order->products_tax_value = $this->currencyService->define( $fields[ 'products_tax_value' ] ?? 0 )->toFloat();
         $order->code = $order->code ?: ''; // to avoid generating a new code
         $order->tendered = $this->currencyService->define( collect( $payments )->map( fn( $payment ) => floatval( $payment[ 'value' ] ) )->sum() )->toFloat();
+
+        /**
+         * The driver is only defined when
+         * the order is a delivery order.
+         */
+        if ( $order->type === 'delivery' ) {
+            $order->driver_id = $fields[ 'driver_id' ] ?? null;
+        }
 
         if ( $order->code === '' ) {
             $order->code = $this->generateOrderCode( $order ); // to avoid generating a new code
@@ -1773,6 +1786,50 @@ class OrdersService
             Order::PAYMENT_PARTIALLY_REFUNDED,
         ] ) ) {
             throw new NotAllowedException( __( 'Unable to proceed a refund on an unpaid order.' ) );
+        }
+
+        /**
+         * Validate every product before starting the refund so we don't
+         * end up with a partial refund if one of the products is invalid.
+         */
+        foreach ( $fields[ 'products' ] as $product ) {
+            $orderProduct = OrderProduct::find( $product[ 'id' ] );
+
+            if ( ! $orderProduct instanceof OrderProduct ) {
+                throw new NotFoundException( sprintf(
+                    __( 'Unable to find the order product with the provided identifier: %s' ),
+                    $product[ 'id' ]
+                ) );
+            }
+
+            $refundQuantity = floatval( $product[ 'quantity' ] );
+
+            if ( $refundQuantity <= 0 ) {
+                throw new NotAllowedException( sprintf(
+                    __( 'The refund quantity for "%s" must be greater than zero.' ),
+                    $orderProduct->name
+                ) );
+            }
+
+            if ( $refundQuantity > $orderProduct->quantity ) {
+                throw new NotAllowedException( sprintf(
+                    __( 'The refund quantity (%s) for "%s" exceeds the remaining refundable quantity (%s).' ),
+                    $refundQuantity,
+                    $orderProduct->name,
+                    $orderProduct->quantity
+                ) );
+            }
+
+            $refundUnitPrice = floatval( $product[ 'unit_price' ] );
+
+            if ( $refundUnitPrice > $orderProduct->unit_price ) {
+                throw new NotAllowedException( sprintf(
+                    __( 'The refund unit price (%s) for "%s" cannot exceed the original unit price (%s).' ),
+                    $refundUnitPrice,
+                    $orderProduct->name,
+                    $orderProduct->unit_price
+                ) );
+            }
         }
 
         $orderRefund = new OrderRefund;
@@ -2055,6 +2112,15 @@ class OrdersService
             }
 
             $order->products;
+
+            /**
+             * If the order is assigned to the driver, while loading the order
+             * we'll make sure to load the driver name.
+             */
+            if ( $order->driver_id ) {
+                $driver = Driver::with( [ 'billing' ] )->find( $order->driver_id );
+                $order->driver_name = ( $driver->billing?->first_name || $driver->billing?->last_name ) ? $driver->billing?->first_name . ' ' . $driver->billing?->last_name : $driver->username;
+            }
 
             OrderAfterLoadedEvent::dispatch( $order );
 
@@ -2614,12 +2680,15 @@ class OrdersService
              */
             $notificationService = app()->make( NotificationService::class );
 
-            $notificationService->create( [
-                'title' => __( 'Unpaid Orders Turned Due' ),
-                'identifier' => $notificationID,
-                'url' => ns()->route( 'ns.dashboard.orders' ),
-                'description' => sprintf( __( '%s order(s) either unpaid or partially paid has turned due. This occurs if none has been completed before the expected payment date.' ), $orders->count() ),
-            ] )->dispatchForGroup( [
+            $notificationService->create(
+                title: __( 'Unpaid Orders Turned Due' ),
+                identifier: $notificationID,
+                url: ns()->route( 'ns.dashboard.orders' ),
+                description: sprintf(
+                    __( '%s order(s) either unpaid or partially paid has turned due. This occurs if none has been completed before the expected payment date.' ),
+                    $orders->count()
+                )
+            )->dispatchForGroup( [
                 Role::namespace( 'admin' ),
                 Role::namespace( 'nexopos.store.administrator' ),
             ] );
@@ -2956,7 +3025,6 @@ class OrdersService
     public function changeDeliveryStatus( Order $order, $status )
     {
         if ( ! in_array( $status, [
-            Order::DELIVERY_COMPLETED,
             Order::DELIVERY_DELIVERED,
             Order::DELIVERY_FAILED,
             Order::DELIVERY_ONGOING,

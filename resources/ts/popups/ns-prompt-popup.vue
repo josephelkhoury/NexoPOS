@@ -1,5 +1,5 @@
 <template>
-    <div id="prompt-popup" :class="size" class="rounded-lg overflow-hidden w-5/7-screen md:w-3/7-screen flex flex-col shadow-lg">
+    <div id="prompt-popup" :class="size" class="rounded-lg overflow-hidden w-[71.43vw] md:w-[42.86vw] flex flex-col shadow-lg">
         <div class="flex items-center justify-center flex-col flex-auto p-2">
             <h2 class="text-xl md:text-2xl font-body text-center">{{ title }}</h2>
             <p class="py-4 text-sm md:text-base text-center">{{ message }}</p>
@@ -10,10 +10,9 @@
                 <input ref="input" @keypress.enter="emitAction( true )" v-if="type === 'input'" v-model="input" class="w-full border-2 p-2"/>
             </div>
         </div>
-        <div class="flex border-t action-buttons">
-            <button class="flex-auto w-1/2 h-16 flex items-center justify-center uppercase" @click="emitAction( true )">{{ __( 'Ok' ) }}</button>
-            <hr class="border-r">
-            <button class="flex-auto w-1/2 h-16 flex items-center justify-center uppercase" @click="reject( false )">{{ __( 'Cancel' ) }}</button>
+        <div class="flex justify-end border-t action-buttons p-3">
+            <button class="h-8 text-sm rounded-md flex items-center justify-center uppercase" @click="emitAction( true )">{{ __( 'Ok' ) }}</button>
+            <button class="h-8 text-sm rounded-md cancel flex items-center justify-center uppercase" @click="reject( false )">{{ __( 'Cancel' ) }}</button>
         </div>
     </div>
 </template>
@@ -39,6 +38,14 @@ export default {
         this.title    =   this.popup.params.title;
         this.message  =   this.popup.params.message;
         this.type     =   this.popup.params.type;
+
+        /**
+         * We need to look for any textarea or input field and focus on it
+         */
+        setTimeout( () => {
+            this.$el.querySelector( 'textarea' )?.focus();
+            this.$el.querySelector( 'input' )?.select();
+        }, 100 );
     },
     methods: {
         __,

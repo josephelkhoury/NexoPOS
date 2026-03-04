@@ -32,13 +32,24 @@ class CheckApplicationHealthMiddleware
              * correctly set for NexoPOS
              */
             ns()->checkCronConfiguration();
-
-            /**
-             * Will check wether symbolic link
-             * is created to the storage
-             */
-            ns()->checkSymbolicLinks();
         }
+
+        /**
+         * Will check wether symbolic link
+         * is created to the storage
+         */
+        ns()->checkSymbolicLinks();
+
+        /**
+         * Check missing symbolic links for modules
+         */
+        ns()->checkModulesSymbolicLinks();
+
+        /**
+         * Check public "modules" directory permissions.
+         * Those permission must be 755
+         */
+        ns()->checkPublicModulesDirectoryPermissions();
 
         /**
          * we'll check here is a module has a missing

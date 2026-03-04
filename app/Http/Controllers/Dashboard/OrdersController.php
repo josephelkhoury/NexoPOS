@@ -9,12 +9,12 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Classes\Hook;
-use App\Classes\Output;
 use App\Crud\CustomerCrud;
 use App\Crud\OrderCrud;
 use App\Crud\OrderInstalmentCrud;
 use App\Crud\PaymentTypeCrud;
 use App\Events\OrderAfterPrintedEvent;
+use App\Events\RenderFooterEvent;
 use App\Exceptions\NotAllowedException;
 use App\Fields\OrderPaymentFields;
 use App\Http\Controllers\DashboardController;
@@ -28,6 +28,7 @@ use App\Services\DateService;
 use App\Services\Options;
 use App\Services\OrdersService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 
 class OrdersController extends DashboardController
@@ -93,18 +94,12 @@ class OrdersController extends DashboardController
             'ordersService' => app()->make( OrdersService::class ),
             'billing' => ( new CustomerCrud )->getForm()[ 'tabs' ][ 'billing' ][ 'fields' ],
             'shipping' => ( new CustomerCrud )->getForm()[ 'tabs' ][ 'shipping' ][ 'fields' ],
-            'title' => sprintf( __( 'Payment Receipt &mdash; %s' ), $order->code ),
+            'title' => sprintf( __( 'Payment Receipt — %s' ), $order->code ),
         ] );
     }
 
     public function listOrders()
     {
-        Hook::addAction(
-            'ns-crud-footer',
-            fn( Output $output ) => $output
-                ->addView( 'pages.dashboard.orders.footer' )
-        );
-
         return OrderCrud::table();
     }
 
@@ -163,11 +158,9 @@ class OrdersController extends DashboardController
          * let's inject the necessary dependency
          * for being able to manage orders.
          */
-        Hook::addAction(
-            'ns-dashboard-footer',
-            fn( Output $output ) => $output
-                ->addView( 'pages.dashboard.orders.footer' )
-        );
+        Event::listen( RenderFooterEvent::class, function ( RenderFooterEvent $event ) {
+            $event->output->addView( 'pages.dashboard.orders.footer' );
+        } );
 
         return View::make( 'pages.dashboard.orders.pos', [
             'title' => sprintf(
@@ -205,6 +198,11 @@ class OrdersController extends DashboardController
                 'ns_pos_allow_wholesale_price' => ns()->option->get( 'ns_pos_allow_wholesale_price', 'no' ) === 'yes' ? true : false,
                 'ns_pos_allow_decimal_quantities' => ns()->option->get( 'ns_pos_allow_decimal_quantities', 'no' ) === 'yes' ? true : false,
                 'ns_pos_force_autofocus' => ns()->option->get( 'ns_pos_force_autofocus', 'no' ) === 'yes' ? true : false,
+                'ns_pos_action_permission_duration' => ns()->option->get( 'ns_pos_action_permission_duration', '5minutes' ),
+                'ns_pos_action_permission_restricted_features' => ns()->option->get( 'ns_pos_action_permission_restricted_features', [] ),
+                'ns_pos_action_permission_enabled' => ns()->option->get( 'ns_pos_action_permission_enabled', 'no' ),
+                'ns_pos_show_preview_pinned_products' => ns()->option->get( 'ns_pos_show_preview_pinned_products', 'no' ) === 'yes' ? true : false,
+                'ns_pos_enable_pinned_products' => ns()->option->get( 'ns_pos_enable_pinned_products', 'no' ) === 'yes' ? true : false,
             ] ),
             'urls' => [
                 'sale_printing_url' => Hook::filter( 'ns-pos-printing-url', ns()->url( '/dashboard/orders/receipt/{id}?dash-visibility=disabled&autoprint=true' ) ),
@@ -238,7 +236,7 @@ class OrdersController extends DashboardController
             'options' => $optionsService->get(),
             'billing' => ( new CustomerCrud )->getForm()[ 'tabs' ][ 'billing' ][ 'fields' ],
             'shipping' => ( new CustomerCrud )->getForm()[ 'tabs' ][ 'shipping' ][ 'fields' ],
-            'title' => sprintf( __( 'Order Invoice &mdash; %s' ), $order->code ),
+            'title' => sprintf( __( 'Order Invoice — %s' ), $order->code ),
         ] );
     }
 
@@ -254,7 +252,7 @@ class OrdersController extends DashboardController
             'ordersService' => app()->make( OrdersService::class ),
             'billing' => ( new CustomerCrud )->getForm()[ 'tabs' ][ 'billing' ][ 'fields' ],
             'shipping' => ( new CustomerCrud )->getForm()[ 'tabs' ][ 'shipping' ][ 'fields' ],
-            'title' => sprintf( __( 'Order Refund Receipt &mdash; %s' ), $refund->order->code ),
+            'title' => sprintf( __( 'Order Refund Receipt — %s' ), $refund->order->code ),
         ] );
     }
 
@@ -270,7 +268,7 @@ class OrdersController extends DashboardController
 
         return View::make( 'pages.dashboard.orders.templates.receipt', [
             'order' => $order,
-            'title' => sprintf( __( 'Order Receipt &mdash; %s' ), $order->code ),
+            'title' => sprintf( __( 'Order Receipt — %s' ), $order->code ),
             'optionsService' => $this->optionsService,
             'ordersService' => $this->ordersService,
             'paymentTypes' => collect( $this->paymentTypes )->mapWithKeys( function ( $payment ) {

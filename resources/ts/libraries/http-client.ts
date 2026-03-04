@@ -1,4 +1,3 @@
-import * as rx from "rx";
 import * as rxjs from 'rxjs';
 
 declare const nsHooks;
@@ -42,6 +41,7 @@ export class HttpClient {
          * trailing slash is buggy on https.
          */
         url     =   nsHooks.applyFilters( 'http-client-url', url.replace( /\/$/, '' ) );
+
         this._subject.next({ identifier: 'async.start', url, data });
 
         return new rxjs.Observable( observer => {

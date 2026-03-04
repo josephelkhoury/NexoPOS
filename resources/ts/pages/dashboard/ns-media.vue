@@ -1,11 +1,13 @@
 <script lang="ts">
-import { nsHooks, nsHttpClient, nsSnackBar } from '~/bootstrap';
+import { nsHttpClient, nsSnackBar } from '~/bootstrap';
 import popupCloser from "~/libraries/popup-closer";
 import { __ } from '~/libraries/lang';
 import nsPosConfirmPopupVue from '~/popups/ns-pos-confirm-popup.vue';
 import { fileIcons } from '~/shared/file-icons';
 import { Popup } from '~/libraries/popup';
 import { nsAlertPopup } from '~/components/components';
+
+declare const nsHooks;
 
 export default {
     name: 'ns-media',
@@ -62,10 +64,14 @@ export default {
          * from a popup
          */
         this.popupCloser();
-        
-        const gallery   =   this.pages.filter( p => p.name === 'gallery' )[0];
-
-        this.select( gallery );
+        const gallery = this.pages.filter(p => p.name === 'gallery')[0];
+        this.select(gallery);
+        // Add paste event listener for clipboard image upload
+        window.addEventListener('paste', this.handlePasteUpload);
+    },
+    beforeDestroy() {
+        // Remove paste event listener
+        window.removeEventListener('paste', this.handlePasteUpload);
     },
     watch: {
         searchField() {
@@ -73,16 +79,6 @@ export default {
             this.searchFieldDebounce    =   setTimeout( () => {
                 this.loadGallery(1);
             }, 500 );
-        },
-        files: {
-            handler() {
-                /**
-                 * as long as there are file that aren't 
-                 * yet uploaded. We'll trigger the "active" status.
-                 */
-                this.uploadFiles();
-            },
-            deep: true
         }
     },
     computed: {
@@ -150,11 +146,11 @@ export default {
                         })
                         .subscribe({
                             next: result => {
-                                nsSnackBar.success( result.message ).subscribe();
+                                nsSnackBar.success( result.message );
                                 this.loadGallery();
                             },
                             error: error => {
-                                nsSnackBar.error( error.message ).subscribe();
+                                nsSnackBar.error( error.message );
                             }
                         });
                     }
@@ -215,17 +211,30 @@ export default {
                             next: result => {
                                 fileData.uploaded   =   true;
                                 fileData.progress   =   100;
-
+                                nsSnackBar.success( 
+                                    result.message || __( 'File uploaded successfully.' ),
+                                    __( 'OK' )
+                                );
+                                this.loadGallery(); // Refresh gallery to show new file
                                 resolve( result );
                             },
                             error: error => {
                                 uploadableFiles[i].failed   =   true;
                                 uploadableFiles[i].error    =   error;
+                                nsSnackBar.error( 
+                                    error.message || __( 'Failed to upload file.' ),
+                                    __( 'OK' )
+                                );
+                                reject( error );
                             }
                         })
                     })
                 } catch( exception ) {
                     fileData.failed     =   true;
+                    nsSnackBar.error( 
+                        __( 'An unexpected error occurred during file upload.' ),
+                        __( 'OK' )
+                    );
                 }
             }
         },
@@ -294,11 +303,23 @@ export default {
          * @param FileList files
          */
         processFiles( files ) {
+            console.log({ files })
             const arrayFiles    =   Array.from( files );
             const valid         =   arrayFiles.filter( file => {
                 console.log( this );
                 return Object.values( window.ns.medias.mimes ).includes( file.type );
             });
+
+            const invalidFiles = arrayFiles.length - valid.length;
+            
+            if (invalidFiles > 0) {
+                nsSnackBar.error(
+                    invalidFiles === 1 
+                        ? __( '1 file was rejected due to invalid file type.' )
+                        : __( '%s files were rejected due to invalid file type.' ).replace('%s', invalidFiles.toString()),
+                    __( 'OK' )
+                );
+            }
 
             valid.forEach( file => {
                 this.files.unshift({
@@ -308,6 +329,16 @@ export default {
                     progress: 0
                 });
             });
+            
+            // Call uploadFiles only once after adding new files
+            if (valid.length > 0) {
+                this.uploadFiles();
+            } else if (arrayFiles.length > 0 && valid.length === 0) {
+                nsSnackBar.error(
+                    __( 'No valid files selected. Please select supported file types.' ),
+                    __( 'OK' )
+                );
+            }
         },
 
         /**
@@ -339,10 +370,19 @@ export default {
             page = page === null ? this.queryPage : page;
             this.queryPage  =   page;
             nsHttpClient.get( `/api/medias?page=${page}&user_id=${this.user_id}${this.searchField.length > 0 ? `&search=${this.searchField}` : `` }` )
-                .subscribe( result => {
-                    // define default selection status
-                    result.data.forEach( resource => resource.selected = false );
-                    this.response  =   result;
+                .subscribe({
+                    next: result => {
+                        // define default selection status
+                        result.data.forEach( resource => resource.selected = false );
+                        this.response  =   result;
+                    },
+                    error: error => {
+                        nsSnackBar.error( 
+                            error.message || __( 'An error occurred while loading the media gallery.' ), 
+                            __( 'OK' ) 
+                        );
+                        console.error('Media gallery loading error:', error);
+                    }
                 })
         },
 
@@ -352,11 +392,11 @@ export default {
             }).subscribe({
                 next: result => {
                     selectedResource.fileEdit   =   false;
-                    nsSnackBar.success( result.message, 'OK' ).subscribe();
+                    nsSnackBar.success( result.message, 'OK' );
                 },
                 error: error => {
                     selectedResource.fileEdit   =   false;
-                    nsSnackBar.success( error.message || __( 'An unexpected error occured.' ), 'OK' ).subscribe();
+                    nsSnackBar.success( error.message || __( 'An unexpected error occured.' ), 'OK' );
                 }
             });
         },
@@ -402,12 +442,54 @@ export default {
         isImage( media ) {
             const imageExtensions   =   Object.keys( ns.medias.imageMimes );
             return imageExtensions.includes( media.extension );
-        }
+        },
+
+        handlePasteUpload(e: ClipboardEvent) {
+            // Only handle if upload tab is active
+            if (this.currentPage.name !== 'upload') return;
+            if (!e.clipboardData) return;
+            
+            try {
+                const items = e.clipboardData.items;
+                let hasValidFile = false;
+                
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (item.kind === 'file' && item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        if (file) {
+                            hasValidFile = true;
+                            this.files.unshift({
+                                file,
+                                uploaded: false,
+                                failed: false,
+                                progress: 0
+                            });
+                        }
+                    }
+                }
+                
+                if (hasValidFile) {
+                    this.uploadFiles();
+                } else {
+                    nsSnackBar.error( 
+                        __( 'No valid image found in clipboard.' ),
+                        __( 'OK' )
+                    );
+                }
+            } catch (error) {
+                nsSnackBar.error( 
+                    __( 'Error processing clipboard content.' ),
+                    __( 'OK' )
+                );
+                console.error('Clipboard paste error:', error);
+            }
+        },
     }
 }
 </script>
 <template>
-    <div class="flex md:flex-row flex-col ns-box shadow-xl overflow-hidden" id="ns-media" :class="isPopup ? 'w-6/7-screen h-6/7-screen' : 'w-full h-full'">
+    <div class="flex md:flex-row flex-col ns-box overflow-hidden" id="ns-media" :class="isPopup ? 'w-[85.71vw] h-[95vh] shadow-xl' : 'm-4 w-auto h-full rounded-lg'">
         <div class="sidebar w-48 md:h-full flex-shrink-0">
             <h3 class="text-xl font-bold my-4 text-center">{{ __( 'Medias Manager' ) }}</h3>
             <ul class="sidebar-menus flex md:block mt-8">
@@ -421,19 +503,21 @@ export default {
                     <ns-close-button @click="popupInstance.close()"></ns-close-button>
                 </div>
             </div>
-            <div id="dropping-zone" @click="triggerManualUpload( $event )" :class="isDragging ? 'border-dashed border-2' : ''" class="flex flex-auto m-2 p-2 flex-col border-info-primary items-center justify-center">
-                <h3 class="cursor-pointer text-lg md:text-xl font-bold text-center text-primary mb-4">{{ __( 'Click Here Or Drop Your File To Upload' ) }}</h3>
+            <div id="dropping-zone" @click="triggerManualUpload( $event )" :class="isDragging ? 'border-dashed border' : ''" class="flex flex-auto m-2 p-2 flex-col border-info-primary items-center justify-center">
+                <h3 class="cursor-pointer font-bold text-center text-fontcolor mb-4">{{ __( 'Click here or drop your files to upload.' ) }}</h3>
                 <input style="display:none" type="file" name="" multiple ref="files" id="">
-                <div class="rounded bg-box-background shadow w-full md:w-2/3 text-primary h-56 overflow-y-auto ns-scrollbar p-2">
-                    <ul v-if="files.length > 0">
-                        <li v-for="(fileData, index) of files" :class="fileData.failed === false ? 'border-info-secondary' : 'border-error-secondary'" :key="index" class="p-2 mb-2 border-b-2 flex items-center justify-between">
-                            <span>{{ fileData.file.name }}</span>
-                            <span v-if="fileData.failed === false" class="rounded bg-info-primary flex items-center justify-center text-xs p-2">{{ fileData.progress }}%</span>
-                            <div @click="openError( fileData )" v-if="fileData.failed === true" class="rounded bg-error-primary hover:bg-error-secondary hover:text-white flex items-center justify-center text-xs p-2 cursor-pointer"><i class="las la-eye"></i> <span class="ml-2">{{ __( 'See Error' ) }}</span></div>
-                        </li>
-                    </ul>
-                    <div v-if="files.length === 0" class="h-full w-full items-center justify-center flex text-center text-soft-tertiary">
-                        {{ __( 'Your uploaded files will displays here.' ) }}
+                <div class="rounded ns-box rounded-lg shadow w-full md:w-2/3 text-fontcolor p-2">
+                    <div class="h-56 overflow-y-auto ns-scrollbar">
+                        <ul v-if="files.length > 0">
+                            <li v-for="(fileData, index) of files" :class="fileData.failed === false ? 'border-info-secondary' : 'border-error-secondary'" :key="index" class="p-2 mb-2 border-b-2 flex items-center justify-between">
+                                <span>{{ fileData.file.name }}</span>
+                                <span v-if="fileData.failed === false" class="rounded bg-info-primary flex items-center justify-center text-xs p-2">{{ fileData.progress }}%</span>
+                                <div @click="openError( fileData )" v-if="fileData.failed === true" class="rounded bg-error-primary hover:bg-error-secondary hover:text-white flex items-center justify-center text-xs p-2 cursor-pointer"><i class="las la-eye"></i> <span class="ml-2">{{ __( 'See Error' ) }}</span></div>
+                            </li>
+                        </ul>
+                        <div v-if="files.length === 0" class="h-full w-full items-center justify-center flex text-center text-soft-tertiary">
+                            {{ __( 'Your uploaded files will displays here.' ) }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -446,9 +530,9 @@ export default {
                 </div>
             </div>
             <div class="flex flex-auto overflow-hidden">
-                <div class="shadow ns-grid flex flex-auto flex-col">
-                    <div class="p-2 border-b border-box-background">
-                        <div class="ns-input border-2 rounded border-input-edge bg-input-background flex">
+                <div class="shadow flex-auto flex flex-col">
+                    <div class="p-2 border-b border-input-edge">
+                        <div class="ns-input border border-input-edge overflow-hidden rounded flex">
                             <input id="search" type="text" v-model="searchField" :placeholder="__( 'Search Medias' )" class="px-4 block w-full sm:text-sm sm:leading-5 h-10">
                             <div class="flex items-center justify-center w-20 p-1" v-if="searchField.length > 0">
                                 <button @click="searchField = ''" class="h-full w-full rounded-tr rounded-br overflow-hidden">{{ __( 'Cancel' ) }}</button>
@@ -456,11 +540,11 @@ export default {
                         </div>
                     </div>
                     <div class="flex flex-auto overflow-hidden">
-                        <div class="p-2 overflow-y-auto ns-scrollbar">
-                            <div class="grid grid-cols-2 md:grid-cols-3 gap-1 lg:grid-cols-4">
-                                <div v-for="(resource, index) of response.data" :key="index" class="">
+                        <div v-if="response.data.length > 0" class="p-2 flex-auto overflow-y-auto ns-scrollbar">
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-1 lg:grid-cols-4 xl:grid-cols-6">
+                                <div v-for="(resource, index) of response.data" :key="index">
                                     <div>
-                                        <div @click="selectResource( resource )" :class="resource.selected ? 'ns-media-image-selected ring-4' : ''" class="aspect-square bg-gray-500 overflow-hidden flex items-center justify-center">
+                                        <div @click="selectResource( resource )" :class="resource.selected ? 'ns-media-image-selected border-secondary ' : 'border-transparent'" class="border-4 aspect-square bg-secondary/50 overflow-hidden flex items-center justify-center">
                                             <img v-if="isImage( resource )" class="object-cover h-full" :src="resource.sizes.thumb" :alt="resource.name"/>
                                             <template v-if="! isImage( resource )" class="object-cover h-full" :alt="resource.name">
                                                 <div class="object-cover h-full flex items-center justify-center">
@@ -500,7 +584,7 @@ export default {
                     </div>
                 </div>
             </div>
-            <div class="py-2 pr-2 flex ns-media-footer flex-shrink-0 justify-between">
+            <div class="py-2 pr-2 flex ns-media-footer text-sm flex-shrink-0 justify-between">
                 <div class="flex -mx-2 flex-shrink-0">
                     <div class="px-2" v-if="bulkSelect">
                         <div class="ns-button shadow rounded overflow-hidden info">
@@ -539,7 +623,7 @@ export default {
                             <div class="ns-button" :class="response.current_page === 1 ? 'disabled cursor-not-allowed' : 'info'">
                                 <button :disabled="response.current_page === 1" @click="loadGallery( response.current_page - 1 )" class="p-2">{{ __( 'Previous' ) }}</button>
                             </div>
-                            <hr class="border-r border-gray-700">
+                            <hr class="border-r mx-1 border-gray-700">
                             <div class="ns-button" :class="response.current_page === response.last_page ? 'disabled cursor-not-allowed' : 'info'">
                                 <button :disabled="response.current_page === response.last_page" @click="loadGallery( response.current_page + 1 )" class="p-2">{{ __( 'Next' ) }}</button>
                             </div>

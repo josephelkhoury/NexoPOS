@@ -2,7 +2,6 @@
 import FormValidation from '~/libraries/form-validation';
 import { BehaviorSubject, forkJoin } from "rxjs";
 import { nsSnackBar, nsHttpClient, nsNotice } from '~/bootstrap';
-import nsManageProducts from '~/pages/dashboard/procurements/manage-products.vue';
 import Tax from "~/libraries/tax";
 import nsProcurementProductOptionsVue from '~/popups/ns-procurement-product-options.vue';
 import { __ } from '~/libraries/lang';
@@ -21,7 +20,7 @@ export default {
     mounted() {
         this.reloadEntities();
 
-        this.shouldPreventAccidentlRefreshSubscriber    =   this.shouldPreventAccidentalRefresh.subscribe({ 
+        this.shouldPreventAccidentalRefreshSubscriber    =   this.shouldPreventAccidentalRefresh.subscribe({ 
             next: value => {
                 if ( value ){
                     window.addEventListener( 'beforeunload', this.addAccidentalCloseListener );
@@ -57,10 +56,15 @@ export default {
                                 }
                             },
                             error: error => {
-                                nsSnackBar.error( error.message || __( 'An error occured while preloading the procurement.' ) ).subscribe();
+                                nsSnackBar.error( error.message || __( 'An error occured while preloading the procurement.' ) );
                             }
                         })
                 }
+
+                /**
+                 * Check for low stock products and display suggestion notification
+                 */
+                this.checkLowStockProducts();
 
                 this.hasPreloaded = true;
             }
@@ -68,7 +72,7 @@ export default {
     },
     computed: {
         activeTab() {
-            return this.validTabs.filter( tab => tab.active ).length > 0 ? this.validTabs.filter( tab => tab.active )[0] : false;
+            return this.validTabs.find(tab => tab.active) || false;
         },
     },
     data() {
@@ -105,17 +109,6 @@ export default {
             form: <any>{},
 
             /**
-             * Reference to the nsSnackBar object
-             */
-            nsSnackBar,
-
-            /**
-             * Is the array that contains the various 
-             * procurement informations
-             */
-            fields: [],
-
-            /**
              * Is the array that contains the result
              * from the search.
              */
@@ -131,11 +124,6 @@ export default {
              * product using the search bar
              */
             debounceSearch: null,
-
-            /**
-             * A reference to the nsHttpClient object
-             */
-            nsHttpClient,
 
             /**
              * Must contain the 
@@ -170,12 +158,17 @@ export default {
              * load of the page when products are added
              */
             shouldPreventAccidentalRefresh: new BehaviorSubject( false ),
-            shouldPreventAccidentlRefreshSubscriber: null,
+            shouldPreventAccidentalRefreshSubscriber: null,
 
             /**
              * Determine if we should show the info box
              */
             showInfo: false,
+
+            /**
+             * Store low stock products for suggestions
+             */
+            lowStockProducts: [],
         }
     },
     watch: {
@@ -198,9 +191,7 @@ export default {
             }
         }
     },
-    components: {
-        nsManageProducts
-    },
+    components: {},
     props: [ 'submitMethod', 'submitUrl', 'returnUrl', 'src', 'rules' ],
     methods: {
         __,
@@ -250,27 +241,19 @@ export default {
             } catch( exception ) {
                 if ( exception !== false ) {
                     return nsSnackBar
-                        .error( exception.message || __( 'An unexpected error has occured' ) )
-                        .subscribe();
+                        .error( exception.message || __( 'An unexpected error has occured' ) );
                 }
             }
         },
         
         computeTotal() {
+            this.totalTaxValues = this.form.products.length > 0 
+                ? this.form.products.reduce((sum, p) => sum + p.procurement.tax_value, 0)
+                : 0;
 
-            this.totalTaxValues = 0;
-
-            if ( this.form.products.length > 0 ) {
-                this.totalTaxValues = this.form.products.map( p => p.procurement.tax_value )
-                    .reduce( ( b, a ) => b + a );
-            }
-
-            this.totalPurchasePrice     =   0;
-
-            if ( this.form.products.length > 0 ) {
-                this.totalPurchasePrice     =   this.form.products.map( p => parseFloat( p.procurement.total_purchase_price ) )
-                    .reduce( ( b, a ) => b + a );
-            }
+            this.totalPurchasePrice = this.form.products.length > 0 
+                ? this.form.products.reduce((sum, p) => sum + parseFloat(p.procurement.total_purchase_price), 0)
+                : 0;
         },
 
         /**
@@ -281,7 +264,7 @@ export default {
          */
         updateLine( index ) {
             const product   =   this.form.products[ index ];
-            const taxGroup  =   this.taxes.filter( taxGroup => taxGroup.id === product.procurement.tax_group_id );
+            const taxGroup  =   this.taxes.find( taxGroup => taxGroup.id === product.procurement.tax_group_id );
 
             if ( parseFloat( product.procurement.purchase_price_edit ) > 0 && parseFloat( product.procurement.quantity ) > 0 ) {
 
@@ -289,8 +272,8 @@ export default {
                  * if some tax group is provided
                  * then let's compute all the grouped taxes
                  */
-                if ( taxGroup.length > 0 ) {
-                    const totalTaxes    =   taxGroup[0].taxes.map( tax => {
+                if ( taxGroup ) {
+                    const totalTaxes    =   taxGroup.taxes.map( tax => {
                         return Tax.getTaxValue(
                             product.procurement.tax_type,
                             product.procurement.purchase_price_edit,
@@ -322,17 +305,16 @@ export default {
             } 
 
             this.computeTotal();
-            this.$forceUpdate();
         },
 
         fetchLastPurchasePrice( index ) {
             const product   =   this.form.products[ index ];
-            const unit      =   product.unit_quantities.filter( unitQuantity => {
-                return product.procurement.unit_id === unitQuantity.unit_id;
-            });
+            const unit      =   product.unit_quantities.find( unitQuantity => 
+                product.procurement.unit_id === unitQuantity.unit_id
+            );
 
-            if ( unit.length > 0 ) {
-                product.procurement.purchase_price_edit      =   ( unit[0].last_purchase_price || 0 );
+            if ( unit && product.procurement.purchase_price_edit === 0 ) {
+                product.procurement.purchase_price_edit      =   ( unit.last_purchase_price || 0 );
             }
 
             this.updateLine( index );
@@ -361,7 +343,7 @@ export default {
                     } else if ( result.length > 1 ) {
                         this.searchResult   =   result;
                     } else {
-                        nsSnackBar.error( __( 'No result match your query.' ) ).subscribe();
+                        nsSnackBar.error( __( 'No result match your query.' ) );
                     }
                 })
         },
@@ -377,22 +359,19 @@ export default {
             
             forkJoin([
                 nsHttpClient.get( '/api/categories' ),
-                nsHttpClient.get( '/api/products' ),
                 nsHttpClient.get( this.src ),
                 nsHttpClient.get( '/api/taxes/groups' ),
             ]).subscribe( (result: any[]) => {
                 this.reloading      =   false;
-                this.categories     =   result[0];
-                this.products       =   result[1];
-                this.taxes          =   result[3];
+                this.taxes          =   result[2];
 
                 if ( this.form.general ) {
-                    result[2].tabs.general.fieds.forEach( (field,index) => {
+                    result[2].tabs.general.fields.forEach( (field,index) => {
                         field.value     =   this.form.tabs.general.fields[ index ].value || '';
                     });
                 } 
 
-                this.form           =   Object.assign( JSON.parse( JSON.stringify( result[2] ) ), this.form );
+                this.form           =   Object.assign( JSON.parse( JSON.stringify( result[1] ) ), this.form );
                 this.form           =   this.formValidation.createForm( this.form );
 
                 /**
@@ -402,7 +381,7 @@ export default {
                 if ( this.form.tabs ) {
                     this.form.tabs.general.fields.forEach( (field, index) => {
                         if ( field.options ) {
-                            field.options   =   result[2].tabs.general.fields[ index ].options;
+                            field.options   =   result[1].tabs.general.fields[ index ].options;
                         }
                     });
                 }
@@ -445,17 +424,13 @@ export default {
             })
         },
         setTabActive( tab ) {
-            this.validTabs.forEach( tab => tab.active = false );
-            this.$forceUpdate();
-            this.$nextTick().then( () => {
-                tab.active  =   true;
-            });
+            this.validTabs.forEach( t => t.active = false );
+            tab.active  =   true;
         },
         addProductList( product ) {
 
             if ( product.unit_quantities === undefined ) {
-                return nsSnackBar.error( __( 'Unable to add product which doesn\'t unit quantities defined.' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'Unable to add product which doesn\'t unit quantities defined.' ) );
             }
 
             /**
@@ -484,6 +459,8 @@ export default {
                 procurement_id: null,
                 $invalid: false,
             }
+
+            console.log({ product})
             
             product.procurement     =   Object.assign( defaultValues, product.procurement );
 
@@ -499,8 +476,7 @@ export default {
         submit() {
 
             if ( this.form.products.length === 0 ) {
-                return nsSnackBar.error( __( 'Unable to proceed, no product were provided.' ), __( 'OK' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed, no product were provided.' ), __( 'OK' ) );
             }
 
             this.form.products.forEach( (product: any) => {
@@ -516,8 +492,7 @@ export default {
             const invalidProducts   =   this.form.products.filter( product => product.procurement.$invalid );
 
             if ( invalidProducts.length > 0 ) {
-                return nsSnackBar.error( __( 'Unable to proceed, one or more product has incorrect values.' ), __( 'OK' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed, one or more product has incorrect values.' ), __( 'OK' ) );
             }
 
             if ( this.formValidation.validateForm( this.form ).length > 0 ) {
@@ -527,13 +502,11 @@ export default {
                  */
                 this.setTabActive( this.activeTab );
 
-                return nsSnackBar.error( __( 'Unable to proceed, the procurement form is not valid.' ), __( 'OK' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed, the procurement form is not valid.' ), __( 'OK' ) );
             }
 
             if ( this.submitUrl === undefined ) {
-                return nsSnackBar.error( __( 'Unable to submit, no valid submit URL were provided.' ), __( 'OK' ) )
-                    .subscribe();
+                return nsSnackBar.error( __( 'Unable to submit, no valid submit URL were provided.' ), __( 'OK' ) );
             }
 
             this.formValidation.disableForm( this.form );
@@ -562,7 +535,7 @@ export default {
 
                         nsSnackBar.error( error.message, undefined, {
                             duration: 5000
-                        }).subscribe();
+                        });
 
                         this.formValidation.enableForm( this.form );
                         
@@ -574,11 +547,7 @@ export default {
         },
         deleteProduct( index ) {
             this.form.products.splice( index, 1 );
-            this.$forceUpdate();
-        },
-        handleGlobalChange( event ) {
-            this.globallyChecked    =   event;
-            this.rows.forEach( r => r.$checked = event );
+            this.computeTotal();
         },
 
         setProductOptions( index ) {
@@ -625,9 +594,9 @@ export default {
                  * unit. This will avoid having the conversion unit be the same
                  * as the procured unit.
                  */
-                const selectedUnitQuantity  =   product.unit_quantities.filter( unitQuantity => parseInt( unitQuantity.unit_id ) === +unitID );
+                const selectedUnitQuantity  =   product.unit_quantities.find( unitQuantity => parseInt( unitQuantity.unit_id ) === +unitID );
                 
-                product.procurement.convert_unit_id         =   selectedUnitQuantity[0].convert_unit_id || undefined;
+                product.procurement.convert_unit_id         =   selectedUnitQuantity?.convert_unit_id || undefined;
                 product.procurement.convert_unit_label      =   await new Promise( ( resolve, reject ) => {
                     if ( product.procurement.convert_unit_id !== undefined ) {
                         nsHttpClient.get( `/api/units/${product.procurement.convert_unit_id}` )
@@ -697,35 +666,21 @@ export default {
 
         getSelectedTax( index ) {
             const product   =   this.form.products[ index ];
-            const select    =   this.taxes.filter( tax => {
-                if ( product.procurement.tax_group_id && product.procurement.tax_group_id === tax.id ) {
-                    return true;
-                }
-                return false;
-            });
+            const select    =   this.taxes.find( tax => 
+                product.procurement.tax_group_id && product.procurement.tax_group_id === tax.id
+            );
 
-            if ( select.length === 1 ) {
-                return select[0].name;
-            }
-
-            return __( 'N/A' );
+            return select ? select.name : __( 'N/A' );
         },
 
         getSelectedUnit( index ) {
             const product   =   this.form.products[ index ];
             const units     =   product.unit_quantities.map( unitQuantity => unitQuantity.unit );
-            const select    =   units.filter( unit => {
-                if ( product.procurement.unit_id !== undefined ) {
-                    return unit.id === product.procurement.unit_id
-                }
-                return false;
-            });
+            const select    =   units.find( unit => 
+                product.procurement.unit_id !== undefined && unit.id === product.procurement.unit_id
+            );
 
-            if ( select.length === 1 ) {
-                return select[0].name;
-            }
-
-            return __( 'N/A' );
+            return select ? select.name : __( 'N/A' );
         },
         
         handleSavedEvent( event, field ) {
@@ -737,6 +692,93 @@ export default {
 
                 field.value     =   event.data.entry.id;
             }
+        },
+
+        /**
+         * Check for products with low stock and display a notification
+         */
+        checkLowStockProducts() {
+            nsHttpClient.get( '/api/procurements/low-stock-suggestions' )
+                .subscribe({
+                    next: (result: any) => {
+                        if ( result.status === 'success' && result.count > 0 ) {
+                            this.lowStockProducts = result.data;
+                            this.showLowStockNotification( result.count );
+                        }
+                    },
+                    error: error => {
+                        // Silently fail - low stock suggestions are optional
+                        console.log( 'Low stock check failed:', error );
+                    }
+                });
+        },
+
+        /**
+         * Display floating notification about low stock products
+         */
+        showLowStockNotification( count ) {
+            const message = count === 1 
+                ? __( 'We\'ve detected 1 product that is running low on stock. You can load it into the procurement.' )
+                : __( 'We\'ve detected {count} products that are running low on stock. You can load them into the procurement.' ).replace( '{count}', count );
+
+            nsNotice.info( 
+                __( 'Products Suggestion' ),
+                message,
+                {
+                    duration: false, // Keep visible until user interacts
+                    actions: {
+                        loadProducts: {
+                            label: __( 'Load Products' ),
+                            onClick: ( instance ) => {
+                                this.loadLowStockProducts();
+                                instance.close();
+                            }
+                        },
+                        dismiss: {
+                            label: __( 'Dismiss' ),
+                            onClick: ( instance ) => {
+                                instance.close();
+                            }
+                        }
+                    }
+                }
+            );
+        },
+
+        /**
+         * Load all low stock products into the procurement form
+         */
+        loadLowStockProducts() {
+            let loadedCount = 0;
+
+            this.lowStockProducts.forEach( product => {
+                // Check if product is already in the procurement
+                const exists = this.form.products.find( p => p.product_id === product.id || p.id === product.id );
+                
+                if ( ! exists ) {
+                    this.addProductList({
+                        ...product,
+                        procurement: {
+                            unit_id: product.recent_procured_unit_id,
+                            quantity: product.recent_procured_quantity,
+                            convert_unit_id: product.recent_procured_convert_unit_id,
+                            convert_unit_label: product.recent_procured_convert_unit_label,
+                            purchase_price_edit: product.recent_procured_purchase_price,
+                        }
+                    });
+                    loadedCount++;
+                }
+            });
+
+            // Switch to products tab to show loaded products
+            this.setTabActive( this.validTabs.find( tab => tab.identifier === 'products' ) );
+
+            // Show success message
+            const message = loadedCount === 1
+                ? __( '1 product has been added to the procurement.' )
+                : __( '{count} products have been added to the procurement.' ).replace( '{count}', loadedCount );
+
+            nsSnackBar.success( message );
         }
     }
 }
@@ -769,7 +811,7 @@ export default {
                     <button :disabled="form.main.disabled"  @click="submit()" class="outline-none px-4 h-10 border-l"><slot name="save">{{ __( 'Save' ) }}</slot></button>
                     <button @click="reloadEntities()" class="outline-none px-4 h-10"><i :class="reloading ? 'animate animate-spin' : ''" class="las la-sync"></i></button>
                 </div>
-                <p class="text-xs text-primary py-1" v-if="form.main.description && form.main.errors.length === 0">{{ form.main.description }}</p>
+                <p class="text-xs text-fontcolor-soft py-1" v-if="form.main.description && form.main.errors.length === 0">{{ form.main.description }}</p>
                 <p class="text-xs py-1 text-error-primary" v-bind:key="index" v-for="(error, index) of form.main.errors">
                     <span><slot name="error-required">{{ error.identifier }}</slot></span>
                 </p>
@@ -850,27 +892,27 @@ export default {
                                                         <div class="flex">
                                                             <div class="flex md:flex-row flex-col md:-mx-1">
                                                                 <div class="md:px-1">
-                                                                    <span class="text-xs text-info-tertiary cursor-pointer underline" @click="deleteProduct( index )">{{ __( 'Delete' ) }}</span>
+                                                                    <span class="text-xs text-primary cursor-pointer underline" @click="deleteProduct( index )">{{ __( 'Delete' ) }}</span>
                                                                 </div>
                                                                 <div class="md:px-1">
-                                                                    <span class="text-xs text-info-tertiary cursor-pointer underline" @click="setProductOptions( index )">{{ __( 'Options' ) }}</span>
+                                                                    <span class="text-xs text-primary cursor-pointer underline" @click="setProductOptions( index )">{{ __( 'Options' ) }}</span>
                                                                 </div>
                                                                 <div class="md:px-1">
-                                                                    <span class="text-xs text-info-tertiary cursor-pointer underline" @click="selectUnitForProduct( index )">{{ __( 'Unit' ) }}: {{ getSelectedUnit( index ) }}</span>
+                                                                    <span class="text-xs text-primary cursor-pointer underline" @click="selectUnitForProduct( index )">{{ __( 'Unit' ) }}: {{ getSelectedUnit( index ) }}</span>
                                                                 </div>
                                                                 <div class="md:px-1">
-                                                                    <span class="text-xs text-info-tertiary cursor-pointer underline" @click="selectTax( index )">{{ __( 'Tax' ) }}: {{ getSelectedTax( index ) }}</span>
+                                                                    <span class="text-xs text-primary cursor-pointer underline" @click="selectTax( index )">{{ __( 'Tax' ) }}: {{ getSelectedTax( index ) }}</span>
                                                                 </div>
                                                                 <div class="md:px-1">
-                                                                    <span class="text-xs text-info-tertiary cursor-pointer underline" @click="defineConversionOption( index )">{{ __( 'Convert' ) }}: {{ product.procurement.convert_unit_id ? product.procurement.convert_unit_label : __( 'N/A' ) }}</span>
+                                                                    <span class="text-xs text-primary cursor-pointer underline" @click="defineConversionOption( index )">{{ __( 'Convert' ) }}: {{ product.procurement.convert_unit_id ? product.procurement.convert_unit_label : __( 'N/A' ) }}</span>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </td> 
                                                     <td :key="key" v-if="column.type === 'text'" @click="triggerKeyboard( product.procurement, key, index )" class="text-primary border cursor-pointer">
                                                         <div class="flex justify-center">
-                                                            <span v-if="[ 'purchase_price_edit' ].includes( <any>key )" class="outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ nsCurrency(product.procurement[ key ]) }}</span>
-                                                            <span v-if="! [ 'purchase_price_edit' ].includes( <any>key )" class="outline-none border-dashed py-1 border-b border-info-primary text-sm">{{ product.procurement[ key ] }}</span>
+                                                            <span v-if="[ 'purchase_price_edit' ].includes( <any>key )" class="outline-none border-dashed py-1 border-b border-primary text-sm">{{ nsCurrency(product.procurement[ key ]) }}</span>
+                                                            <span v-if="! [ 'purchase_price_edit' ].includes( <any>key )" class="outline-none border-dashed py-1 border-b border-primary text-sm">{{ product.procurement[ key ] }}</span>
                                                         </div>
                                                     </td>
                                                     <td :key="key" v-if="column.type === 'custom_select'" class="p-2 text-primary border">

@@ -1,7 +1,7 @@
 {
   "private": true,
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "type": "module",
   "scripts": {
@@ -11,35 +11,38 @@
     "test": "jest"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.0.7",
-    "@vitejs/plugin-vue": "^5.2.1",
-    "laravel-echo": "^1.17.1",
-    "laravel-vite-plugin": "^1.2.0",
-    "pusher-js": "^8.4.0-rc2",
-    "sass": "^1.83.4",
-    "tailwindcss": "^3.4.16",
-    "vite": "^5.4.0",
-    "vite-plugin-mkcert": "^1.17.5"
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tailwindcss/vite": "^4.2.1",
+    "@types/dompurify": "^3.0.5",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "laravel-echo": "^2.3.0",
+    "laravel-vite-plugin": "^2.1.0",
+    "pusher-js": "^8.4.0",
+    "sass": "^1.97.3",
+    "tailwindcss": "^4.1.13",
+    "vite": "^7.3.1",
+    "vite-plugin-mkcert": "^1.17.9"
   },
   "name": "nexopos",
   "dependencies": {
-    "@ckeditor/ckeditor5-build-classic": "^43.0.0",
     "@ckeditor/ckeditor5-vue": "^5.1.0",
-    "@dicebear/avataaars": "^9.2.2",
+    "@dicebear/avataaars": "^9.3.1",
     "@dicebear/core": "^9.2.2",
-    "@wordpress/hooks": "^4.18.0",
-    "chart.js": "^4.4.7",
+    "@wordpress/hooks": "^4.38.0",
+    "chart.js": "^4.5.1",
+    "ckeditor5": "^47.5.0",
     "currency.js": "^2.0.4",
-    "lodash": "^4.17.21",
-    "mathjs": "^14.2.1",
+    "dompurify": "^3.3.1",
+    "lodash": "^4.17.23",
+    "mathjs": "^15.1.0",
     "moment": "^2.30.1",
     "numeral": "^2.0.6",
     "qrcode": "^1.5.4",
     "rxjs": "^7.8.1",
-    "vue": "^3.5.13",
-    "vue-chartjs": "^5.3.1",
+    "sortablejs": "^1.15.3",
+    "vue": "^3.5.28",
+    "vue-chartjs": "^5.3.3",
     "vue-router": "^4.4.3",
-    "vue3-daterange-picker": "^1.0.1",
-    "vuedraggable": "^2.24.3"
+    "vuedraggable": "^4.1.0"
   }
 }

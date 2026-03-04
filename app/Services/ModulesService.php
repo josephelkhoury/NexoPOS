@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Classes\Cache;
 use App\Classes\XMLParser;
 use App\Events\ModulesAfterDisabledEvent;
 use App\Events\ModulesAfterEnabledEvent;
@@ -16,13 +17,11 @@ use App\Models\ModuleMigration;
 use Error as GlobalError;
 use Exception;
 use Illuminate\Contracts\View\View as ViewView;
-use Illuminate\Database\Migrations\Migration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\View;
@@ -42,6 +41,8 @@ class ModulesService
 
     const CACHE_MIGRATION_LABEL = 'module-migration-';
 
+    private $composer = [];
+
     public function __construct()
     {
         if ( Helper::installed() ) {
@@ -58,8 +59,27 @@ class ModulesService
          * if that doesn't exists
          */
         if ( ! is_dir( base_path( 'modules' ) ) ) {
-            Storage::disk( 'ns' )->makeDirectory( 'modules' );
+            mkdir( base_path( 'modules' ), 0755, true );
         }
+
+        /**
+         * create the public modules directory
+         * if that doesn't exists
+         */
+        if ( ! is_dir( public_path( 'modules' ) ) ) {
+            mkdir( public_path( 'modules' ), 0755, true );
+        }
+
+        /**
+         * As module might load composer, we need to store current composer
+         * configuration and restore them after having loaded all modules.
+         */
+        $this->composer = [
+            '_composer_bin_dir' => $GLOBALS[ '_composer_bin_dir' ] ?? null,
+            '_composer_autoload_path' => $GLOBALS[ '_composer_autoload_path' ] ?? null,
+            '_composer_bin_dir' => $GLOBALS[ '_composer_bin_dir' ] ?? null,
+            '__composer_autoload_files' => $GLOBALS[ '__composer_autoload_files' ] ?? null,
+        ];
     }
 
     /**
@@ -98,6 +118,17 @@ class ModulesService
             } );
         } else {
             $this->__init( $dir );
+        }
+
+        /**
+         * When all module are loaded, we should revert all composer
+         * configuration that might be changed by the modules.
+         */
+        foreach ( $this->composer as $key => $value ) {
+            // there is no need to set null value as a global variable
+            if ( $value !== null ) {
+                $GLOBALS[ $key ] = $value;
+            }
         }
     }
 
@@ -160,6 +191,36 @@ class ModulesService
                 ];
             }
 
+            // We'll check if the the product description has localization tags. If it's the case
+            // based on the current locale we'll load the right description otherwise fallback on "en" (for English) or says the description
+            // has an invalid format
+
+            $locales = $xmlElement->children()->description?->xpath( 'locale' ) ?? [];
+
+            if ( count( $locales ) > 0 ) {
+                $config[ 'description' ] = collect( $locales )->mapWithKeys( function ( $locale ) {
+                    $locale = (array) $locale;
+
+                    return [ $locale[ '@attributes' ][ 'lang' ] => $locale[ 0 ] ];
+                } );
+            } else {
+                // Fallback: if there is a <description> element without <locale> children, treat its text as English.
+                $descriptionNode = $xmlElement->children()->description ?? null;
+                if ( $descriptionNode instanceof \SimpleXMLElement ) {
+                    $rawDescription = trim( (string) $descriptionNode );
+                    if ( $rawDescription !== '' ) {
+                        // Ensure description is an array and assign to 'en'.
+                        if ( ! isset( $config[ 'description' ] ) || ! is_array( $config[ 'description' ] ) ) {
+                            $config[ 'description' ] = [];
+                        }
+                        // Don't overwrite if already defined.
+                        if ( ! isset( $config[ 'description' ][ 'en' ] ) ) {
+                            $config[ 'description' ][ 'en' ] = $rawDescription;
+                        }
+                    }
+                }
+            }
+
             $config[ 'requires' ] = collect( $xmlElement->children()->requires->xpath( '//dependency' ) )->mapWithKeys( function ( $module ) {
                 $module = (array) $module;
 
@@ -182,9 +243,13 @@ class ModulesService
                 $indexPath = $currentModulePath . ucwords( $config[ 'namespace' ] . 'Module.php' );
                 $webRoutesPath = $currentModulePath . 'Routes' . DIRECTORY_SEPARATOR . 'web.php';
                 $apiRoutesPath = $currentModulePath . 'Routes' . DIRECTORY_SEPARATOR . 'api.php';
+                $consolePath = $currentModulePath . 'Routes' . DIRECTORY_SEPARATOR . 'console.php';
+                $domainRoutesPath = $currentModulePath . 'Routes' . DIRECTORY_SEPARATOR . 'domain.php';
 
                 // check index existence
                 $config[ 'api-file' ] = is_file( $apiRoutesPath ) ? $apiRoutesPath : false;
+                $config[ 'domain-file' ] = is_file( $domainRoutesPath ) ? $domainRoutesPath : false;
+                $config[ 'console-file' ] = is_file( $consolePath ) ? $consolePath : false;
                 $config[ 'composer-installed' ] = Storage::disk( 'ns-modules' )->exists( $config[ 'namespace' ] . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php' );
                 $config[ 'controllers-path' ] = $currentModulePath . 'Http' . DIRECTORY_SEPARATOR . 'Controllers';
                 $config[ 'controllers-relativePath' ] = ucwords( $config[ 'namespace' ] ) . DIRECTORY_SEPARATOR . 'Http' . DIRECTORY_SEPARATOR . 'Controllers';
@@ -217,6 +282,7 @@ class ModulesService
                 $config[ 'providers' ] = $this->getAllValidFiles( Storage::disk( 'ns-modules' )->allFiles( $config[ 'namespace' ] . DIRECTORY_SEPARATOR . 'Providers' ) );
                 $config[ 'actions' ] = $this->getAllValidFiles( Storage::disk( 'ns-modules' )->allFiles( $config[ 'namespace' ] . DIRECTORY_SEPARATOR . 'Actions' ) );
                 $config[ 'filters' ] = $this->getAllValidFiles( Storage::disk( 'ns-modules' )->allFiles( $config[ 'namespace' ] . DIRECTORY_SEPARATOR . 'Filters' ) );
+                $config[ 'config-files' ] = $this->getAllValidFiles( Storage::disk( 'ns-modules' )->allFiles( $config[ 'namespace' ] . DIRECTORY_SEPARATOR . 'Config' ) );
                 $config[ 'commands' ] = collect( Storage::disk( 'ns-modules' )->allFiles( $config[ 'namespace' ] . DIRECTORY_SEPARATOR . 'Console' . DIRECTORY_SEPARATOR . 'Commands' ) )
                     ->mapWithKeys( function ( $file ) {
                         $className = str_replace(
@@ -247,7 +313,7 @@ class ModulesService
 
                     foreach ( $files as $file ) {
                         $info = pathinfo( $file );
-                        $_config = include_once base_path( 'modules' ) . DIRECTORY_SEPARATOR . $file;
+                        $_config = require_once base_path( 'modules' ) . DIRECTORY_SEPARATOR . $file;
                         $final[ $config[ 'namespace' ] ] = [];
                         $final[ $config[ 'namespace' ] ][ $info[ 'filename' ] ] = $_config;
                         $moduleConfig = Arr::dot( $final );
@@ -478,8 +544,10 @@ class ModulesService
          * After the complicance check, we'll autoload
          * the composer vendor if the module has an autoload file.
          */
-        if ( is_file( $module[ 'path' ] . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php' ) ) {
-            include_once $module[ 'path' ] . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+        $autoloadPath = $module[ 'path' ] . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
+
+        if ( is_file( $autoloadPath ) ) {
+            require_once $autoloadPath;
         }
 
         /**
@@ -490,6 +558,19 @@ class ModulesService
 
         // add view namespace
         View::addNamespace( ucwords( $module[ 'namespace' ] ), $module[ 'views-path' ] );
+
+        // we'll try to load all configuration files that are available on this module
+        // and make sure to load them on global object.
+        foreach ( $module[ 'config-files' ] as $file ) {
+            $config = include base_path( 'modules' ) . DIRECTORY_SEPARATOR . $file;
+            $config = Arr::dot( $config );
+            $config = collect( $config )->mapWithKeys( function ( $value, $key ) use ( $module ) {
+                return [ 'modules.' . $module[ 'namespace' ] . '.' . $key => $value ];
+            } );
+            $config = $config->toArray();
+
+            config( $config );
+        }
     }
 
     /**
@@ -604,6 +685,8 @@ class ModulesService
                 return $module;
             }
         }
+
+        return null; // explicit fallback when no module matches
     }
 
     /**
@@ -707,6 +790,8 @@ class ModulesService
                 'module' => $module,
             ];
         }
+
+        return []; // explicit fallback if module not found
     }
 
     /**
@@ -892,51 +977,164 @@ class ModulesService
      * Creates a symbolic link to the asset directory
      * for specific module.
      */
+    /**
+     * Fix the permissions of the public/modules directory
+     */
+    public function fixPublicModulesDirectoryPermissions(): void
+    {
+        $this->checkManagementStatus();
+
+        $publicModulesPath = public_path( 'modules' );
+
+        if ( ! is_dir( $publicModulesPath ) ) {
+            mkdir( $publicModulesPath, 0755, true );
+
+            return;
+        }
+
+        // Set the correct permissions
+        chmod( $publicModulesPath, 0755 );
+    }
+
     public function createSymLink( string $moduleNamespace ): void
     {
         $this->checkManagementStatus();
 
         if ( ! is_dir( base_path( 'public/modules' ) ) ) {
-            Storage::disk( 'public' )->makeDirectory( 'modules', 0755, true );
+            mkdir( base_path( 'public/modules' ), 0755, true );
         }
 
         /**
          * checks if a public directory exists and create a
          * link for that directory
          */
-        if (
-            Storage::disk( 'ns-modules' )->exists( $moduleNamespace . DIRECTORY_SEPARATOR . 'Public' ) &&
-            ! is_link( base_path( 'public' ) . DIRECTORY_SEPARATOR . 'modules' . DIRECTORY_SEPARATOR . strtolower( $moduleNamespace ) )
-        ) {
-            $target = base_path( 'modules/' . $moduleNamespace . '/Public' );
+        if ( Storage::disk( 'ns-modules' )->exists( $moduleNamespace . DIRECTORY_SEPARATOR . 'Public' ) ) {
+            $linkPath = base_path( 'public' ) . DIRECTORY_SEPARATOR . 'modules' . DIRECTORY_SEPARATOR . strtolower( $moduleNamespace );
+            $targetPath = base_path( 'modules' . DIRECTORY_SEPARATOR . $moduleNamespace . DIRECTORY_SEPARATOR . 'Public' );
 
-            if ( ! \windows_os() ) {
-                $link = @\symlink( $target, public_path( '/modules/' . strtolower( $moduleNamespace ) ) );
-            } else {
-                $mode = 'J';
-                $link = public_path( 'modules' . DIRECTORY_SEPARATOR . strtolower( $moduleNamespace ) );
-                $target = base_path( 'modules' . DIRECTORY_SEPARATOR . $moduleNamespace . DIRECTORY_SEPARATOR . 'Public' );
-                $link = exec( "mklink /{$mode} \"{$link}\" \"{$target}\"" );
+            // Check if link exists and is broken, then remove it
+            if ( is_link( $linkPath ) ) {
+                // On Windows, check if the junction/symlink target exists
+                if ( $this->isWindowsOS() ) {
+                    // Windows: Check if the target is accessible
+                    if ( ! file_exists( $linkPath ) || ! is_readable( $linkPath ) ) {
+                        $this->removeSymLink( $moduleNamespace );
+                    }
+                } else {
+                    // Linux: Check if the symlink target exists
+                    if ( ! file_exists( readlink( $linkPath ) ) ) {
+                        unlink( $linkPath );
+                    }
+                }
             }
-        }
 
-        /**
-         * checks if a lang directory exists and create a
-         * link for that directory
-         */
-        if (
-            Storage::disk( 'ns-modules' )->exists( $moduleNamespace . DIRECTORY_SEPARATOR . 'Lang' ) &&
-            ! is_link( base_path( 'public' ) . DIRECTORY_SEPARATOR . 'modules-lang' . DIRECTORY_SEPARATOR . strtolower( $moduleNamespace ) )
-        ) {
-            $target = base_path( 'modules/' . $moduleNamespace . '/Lang' );
+            /**
+             * This creates symbolic links for the module assets.
+             */
+            if ( ! is_link( $linkPath ) && ! file_exists( $linkPath ) ) {
+                if ( $this->isWindowsOS() ) {
+                    // Windows: Use mklink with appropriate mode
+                    // /D for directory, /H for hard link (file), /J for junction (directory - more compatible)
+                    $isDirectory = is_dir( $targetPath );
+                    $mode = $isDirectory ? 'D' : 'H';
 
-            if ( ! \windows_os() ) {
-                $link = @\symlink( $target, public_path( '/modules-lang/' . strtolower( $moduleNamespace ) ) );
-            } else {
-                $mode = 'J';
-                $link = public_path( 'modules-lang' . DIRECTORY_SEPARATOR . strtolower( $moduleNamespace ) );
-                $target = base_path( 'modules' . DIRECTORY_SEPARATOR . $moduleNamespace . DIRECTORY_SEPARATOR . 'Lang' );
-                $link = exec( "mklink /{$mode} \"{$link}\" \"{$target}\"" );
+                    // For directories, prefer junction (/J) over symbolic directory link (/D)
+                    // as junctions don't require admin privileges
+                    if ( $isDirectory ) {
+                        $mode = 'J';
+                    }
+
+                    // Execute mklink command
+                    $command = "mklink /{$mode} \"{$linkPath}\" \"{$targetPath}\"";
+                    exec( $command, $output, $resultCode );
+
+                    // Throw error if command failed
+                    if ( $resultCode !== 0 ) {
+                        $errorMessage = sprintf( __( 'Failed to create symbolic link for module "%s": %s' ), $moduleNamespace, implode( "\n", $output ) );
+                        Log::error( $errorMessage );
+                        throw new Exception( $errorMessage );
+                    }
+                } else {
+                    // Linux/Unix: Use symlink function
+                    $result = @symlink( $targetPath, $linkPath );
+
+                    if ( ! $result ) {
+                        $errorMessage = sprintf( __( 'Failed to create symbolic link for module "%s"' ), $moduleNamespace );
+                        Log::error( $errorMessage );
+                        throw new Exception( $errorMessage );
+                    }
+                }
+            }
+
+            /**
+             * This create symbolic links for the language files.
+             * We first need to make sure the "modules-lang" directory exists
+             * otherwise we create it.
+             */
+            if ( ! is_dir( base_path( 'public/modules-lang' ) ) ) {
+                mkdir( base_path( 'public/modules-lang' ), 0755, true );
+            }
+
+            if ( Storage::disk( 'ns-modules' )->exists( $moduleNamespace . DIRECTORY_SEPARATOR . 'Lang' ) ) {
+                $linkPath = base_path( 'public' ) . DIRECTORY_SEPARATOR . 'modules-lang' . DIRECTORY_SEPARATOR . strtolower( $moduleNamespace );
+                $targetPath = base_path( 'modules' . DIRECTORY_SEPARATOR . $moduleNamespace . DIRECTORY_SEPARATOR . 'Lang' );
+
+                // Check if link exists and is broken, then remove it
+                if ( is_link( $linkPath ) ) {
+                    // On Windows, check if the junction/symlink target exists
+                    if ( $this->isWindowsOS() ) {
+                        // Windows: Check if the target is accessible
+                        if ( ! file_exists( $linkPath ) || ! is_readable( $linkPath ) ) {
+                            // Remove broken link for language files
+                            if ( is_dir( $linkPath ) ) {
+                                $command = "rmdir \"$linkPath\"";
+                                exec( $command, $output, $resultCode );
+
+                                if ( $resultCode !== 0 ) {
+                                    Log::warning( 'Failed to remove broken language directory link: ' . implode( "\n", $output ) );
+                                }
+                            } else {
+                                $command = "del \"$linkPath\"";
+                                exec( $command, $output, $resultCode );
+
+                                if ( $resultCode !== 0 ) {
+                                    Log::warning( 'Failed to remove broken language file link: ' . implode( "\n", $output ) );
+                                }
+                            }
+                        }
+                    } else {
+                        // Linux: Check if the symlink target exists
+                        if ( ! file_exists( readlink( $linkPath ) ) ) {
+                            unlink( $linkPath );
+                        }
+                    }
+                }
+
+                // Create symlink if it doesn't exist
+                if ( ! is_link( $linkPath ) && ! file_exists( $linkPath ) ) {
+                    if ( $this->isWindowsOS() ) {
+                        // Windows: Use junction (/J) for directory
+                        $mode = 'J';
+                        $command = "mklink /{$mode} \"{$linkPath}\" \"{$targetPath}\"";
+                        exec( $command, $output, $resultCode );
+
+                        if ( $resultCode !== 0 ) {
+                            $errorMessage = sprintf( __( 'Failed to create language symbolic link for module "%s": %s' ), $moduleNamespace, implode( "\n", $output ) );
+                            Log::error( $errorMessage );
+                            dump( $linkPath );
+                            throw new Exception( $errorMessage );
+                        }
+                    } else {
+                        // Linux/Unix: Use symlink function
+                        $result = @symlink( $targetPath, $linkPath );
+
+                        if ( ! $result ) {
+                            $errorMessage = sprintf( __( 'Failed to create language symbolic link for module "%s"' ), $moduleNamespace );
+                            Log::error( $errorMessage );
+                            throw new Exception( $errorMessage );
+                        }
+                    }
+                }
             }
         }
     }
@@ -948,10 +1146,41 @@ class ModulesService
     {
         $this->checkManagementStatus();
 
-        $path = base_path( 'public' ) . DIRECTORY_SEPARATOR . 'modules' . DIRECTORY_SEPARATOR . $moduleNamespace;
+        $linkPath = base_path( 'public' ) . DIRECTORY_SEPARATOR . 'modules' . DIRECTORY_SEPARATOR . strtolower( $moduleNamespace );
 
-        if ( is_link( $path ) ) {
-            unlink( $path );
+        // Check if path exists (could be symlink, junction, or regular directory/file)
+        if ( file_exists( $linkPath ) || is_link( $linkPath ) ) {
+            if ( $this->isWindowsOS() ) {
+                // Windows: Need to determine if it's a directory junction/symlink or file link
+                if ( is_dir( $linkPath ) ) {
+                    // It's a directory junction or symbolic link
+                    // Use rmdir for junctions and directory symlinks on Windows
+                    $command = "rmdir \"$linkPath\"";
+                    exec( $command, $output, $resultCode );
+
+                    if ( $resultCode !== 0 ) {
+                        Log::warning( "Failed to remove directory symbolic link for module {$moduleNamespace}: " . implode( "\n", $output ) );
+                    }
+                } elseif ( is_file( $linkPath ) || is_link( $linkPath ) ) {
+                    // It's a file hard link or symbolic link
+                    // Use del command for files on Windows
+                    $command = "del \"$linkPath\"";
+                    exec( $command, $output, $resultCode );
+
+                    if ( $resultCode !== 0 ) {
+                        Log::warning( "Failed to remove file symbolic link for module {$moduleNamespace}: " . implode( "\n", $output ) );
+                    }
+                }
+            } else {
+                // Linux/Unix: Use unlink which works for both file and directory symlinks
+                if ( is_link( $linkPath ) ) {
+                    $result = @unlink( $linkPath );
+
+                    if ( ! $result ) {
+                        Log::warning( "Failed to remove symbolic link for module {$moduleNamespace}" );
+                    }
+                }
+            }
         }
     }
 
@@ -1005,6 +1234,14 @@ class ModulesService
     }
 
     /**
+     * Check if the current operating system is Windows
+     */
+    private function isWindowsOS(): bool
+    {
+        return strtoupper( substr( PHP_OS, 0, 3 ) ) === 'WIN';
+    }
+
+    /**
      * Deletes an existing module using the provided namespace
      */
     public function delete( string $namespace ): array
@@ -1030,6 +1267,7 @@ class ModulesService
              * We revert all migrations made by the modules.
              */
             $this->revertMigrations( $module );
+            $this->dropModuleMigration( $module );
 
             /**
              * Delete module from filesystem.
@@ -1101,6 +1339,12 @@ class ModulesService
                 $this->__runSingleFile( 'down', $module[ 'namespace' ], $file );
             }
         }
+    }
+
+    public function dropModuleMigration( array $module )
+    {
+        ModuleMigration::where( 'namespace', $module[ 'namespace' ] )
+            ->delete();
     }
 
     /**
@@ -1220,6 +1464,31 @@ class ModulesService
                     'status' => 'error',
                     'code' => 'autoloaded_module',
                     'message' => sprintf( __( 'The module "%s" is autoloaded and cannot be enabled.' ), $module[ 'name' ] ),
+                ], 403 );
+            }
+
+            /**
+             * Check if the current NexoPOS version meets
+             * the minimum version required by the module
+             */
+            if (
+                isset( $module[ 'core' ] ) &&
+                ! empty( $module[ 'core' ][ 'min-version' ] ) &&
+                version_compare(
+                    config( 'nexopos.version' ),
+                    $module[ 'core' ][ 'min-version' ],
+                    '<'
+                )
+            ) {
+                return response()->json( [
+                    'status' => 'error',
+                    'code' => 'version_mismatch',
+                    'message' => sprintf(
+                        __( 'The module "%s" cannot be enabled as it requires NexoPOS version %s or higher, but you are running version %s.' ),
+                        $module[ 'name' ],
+                        $module[ 'core' ][ 'min-version' ],
+                        config( 'nexopos.version' )
+                    ),
                 ], 403 );
             }
 
@@ -1652,24 +1921,9 @@ class ModulesService
 
             /**
              * Generate Module Public Folder
-             * create a symbolink link to that directory
+             * create a symbolic link to that directory
              */
-            $target = base_path( 'modules/' . $config[ 'namespace' ] . '/Public' );
-
-            if ( ! \windows_os() ) {
-                Storage::disk( 'public' )->makeDirectory( 'modules/' . $config[ 'namespace' ], 0755, true );
-
-                $linkPath = public_path( '/modules/' . strtolower( $config[ 'namespace' ] ) );
-
-                if ( ! is_link( $linkPath ) ) {
-                    $link = \symlink( $target, $linkPath );
-                }
-            } else {
-                $mode = 'J';
-                $link = public_path( 'modules' . DIRECTORY_SEPARATOR . strtolower( $config[ 'namespace' ] ) );
-                $target = base_path( 'modules' . DIRECTORY_SEPARATOR . $config[ 'namespace' ] . DIRECTORY_SEPARATOR . 'Public' );
-                $link = exec( "mklink /{$mode} \"{$link}\" \"{$target}\"" );
-            }
+            $this->createSymLink( $config[ 'namespace' ] );
 
             return [
                 'status' => 'success',
@@ -1704,6 +1958,8 @@ class ModulesService
                     'name' => $config[ 'namespace' ] . 'Event',
                 ] );
                 break;
+            default:
+                throw new \InvalidArgumentException( 'Unsupported stream content type: ' . $content );
         }
     }
 }

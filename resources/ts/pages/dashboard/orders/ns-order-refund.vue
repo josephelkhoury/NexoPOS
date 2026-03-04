@@ -4,7 +4,7 @@
             <ns-spinner></ns-spinner>
         </div>
         <div class="px-4 w-full lg:w-1/2">
-            <h3 class="py-2 border-b-2 text-primary border-info-primary">{{ __( 'Refund With Products' ) }}</h3>
+            <h3 class="py-2 border-b-2 text-fontcolor border-info-primary">{{ __( 'Refund With Products' ) }}</h3>
             <div class="my-2">
                 <ul>
                     <li class="border-b border-info-primary flex justify-between items-center mb-2">
@@ -13,7 +13,7 @@
                                 <ns-field v-for="(field,index) of selectFields" :field="field" :key="index"></ns-field>
                             </div>
                             <div class="flex justify-between p-2">
-                                <div class="flex items-center text-primary">
+                                <div class="flex items-center text-font">
                                     <span v-if="order.shipping > 0" class="mr-2">{{ __( 'Refund Shipping' ) }}</span>
                                     <ns-checkbox v-if="order.shipping > 0" @change="toggleRefundShipping( $event )" :checked="refundShipping"></ns-checkbox>
                                 </div>
@@ -24,10 +24,10 @@
                         </div>
                     </li>
                     <li>
-                        <h4 class="py-1 border-b-2 text-primary border-info-primary">{{ __( 'Products' ) }}</h4>
+                        <h4 class="py-1 border-b-2 text-fontcolor border-info-primary">{{ __( 'Products' ) }}</h4>
                     </li>
                     <li v-for="product of refundables" :key="product.id" class="elevation-surface border flex justify-between items-center mb-2">
-                        <div class="px-2 text-primary flex justify-between flex-auto">
+                        <div class="px-2 text-fontcolor flex justify-between flex-auto">
                             <div class="flex flex-col">
                                 <p class="py-2">
                                     <span>{{ product.name }}</span>
@@ -41,20 +41,20 @@
                             </div>
                         </div>
                         <div class="flex">
-                            <p @click="openSettings( product )" class="p-2 border-l border-info-primary cursor-pointer text-primary ns-numpad-key w-16 h-16 flex items-center justify-center">
+                            <p @click="openSettings( product )" class="p-2 border-l border-info-primary cursor-pointer text-fontcolor ns-numpad-key w-16 h-16 flex items-center justify-center">
                                 <i class="las la-cog text-xl"></i>
                             </p>
-                            <p @click="deleteProduct( product )" class="p-2 border-l border-info-primary cursor-pointer text-primary ns-numpad-key w-16 h-16 flex items-center justify-center">
+                            <p @click="deleteProduct( product )" class="p-2 border-l border-info-primary cursor-pointer text-fontcolor ns-numpad-key w-16 h-16 flex items-center justify-center">
                                 <i class="las la-trash"></i>
                             </p>
-                            <p @click="changeQuantity( product )" class="p-2 border-l border-info-primary cursor-pointer text-primary ns-numpad-key w-16 h-16 flex items-center justify-center">{{ product.quantity }}</p>
+                            <p @click="changeQuantity( product )" class="p-2 border-l border-info-primary cursor-pointer text-fontcolor ns-numpad-key w-16 h-16 flex items-center justify-center">{{ product.quantity }}</p>
                         </div>
                     </li>
                 </ul>
             </div>
         </div>
         <div class="px-4 w-full lg:w-1/2">
-            <h3 class="py-2 border-b-2 text-primary border-info-primary">{{ __( 'Summary' ) }}</h3>
+            <h3 class="py-2 border-b-2 text-fontcolor border-info-primary">{{ __( 'Summary' ) }}</h3>
             <div class="py-2">
                 <div class="elevation-surface border font-semibold flex mb-2 p-2 justify-between">
                     <span>{{ __( 'Total' ) }}</span>
@@ -156,15 +156,15 @@ export default {
 
         proceedPayment() {
             if ( this.selectedPaymentGateway === false ) {
-                return nsSnackBar.error( __( 'Please select a payment gateway before proceeding.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Please select a payment gateway before proceeding.' ) );
             }
 
             if ( this.total === 0 ) {
-                return nsSnackBar.error( __( 'There is nothing to refund.' ) ).subscribe();
+                return nsSnackBar.error( __( 'There is nothing to refund.' ) );
             }
 
             if ( this.screen === 0 ) {
-                return nsSnackBar.error( __( 'Please provide a valid payment amount.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Please provide a valid payment amount.' ) );
             }
 
             Popup.show( nsPosConfirmPopupVue, {
@@ -205,11 +205,11 @@ export default {
 
                         this.print.process( result.data.orderRefund.id, 'refund' );
                         
-                        nsSnackBar.success( result.message ).subscribe();
+                        nsSnackBar.success( result.message );
                     },
                     error: (error) => {
                         this.isSubmitting   =   false;
-                        nsSnackBar.error( error.message ).subscribe();
+                        nsSnackBar.error( error.message );
                     }
                 })
         },
@@ -218,7 +218,7 @@ export default {
             this.formValidation.validateFields( this.selectFields );
 
             if ( ! this.formValidation.fieldsValid( this.selectFields ) ) {
-                return nsSnackBar.error( __( 'Please select a product before proceeding.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Please select a product before proceeding.' ) );
             }
 
             const fields                =   this.formValidation.extractFields( this.selectFields );
@@ -231,12 +231,12 @@ export default {
                     .reduce( ( before, after ) => before + after );
 
                 if ( totalUsedQuantity === currentProduct[0].quantity ) {
-                    return nsSnackBar.error( __( 'Not enough quantity to proceed.' ) ).subscribe();
+                    return nsSnackBar.error( __( 'Not enough quantity to proceed.' ) );
                 }
             }
 
             if ( currentProduct[0].quantity === 0 ) {
-                return nsSnackBar.error( __( 'Not enough quantity to proceed.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Not enough quantity to proceed.' ) );
             }
 
             const product    =   { ...currentProduct[0], ...{
@@ -304,7 +304,7 @@ export default {
                 this.selectedPaymentGatewayLabel   =   this.paymentField[0].options
                     .filter( option => option.value === this.selectedPaymentGateway )[0].label;
             } catch( exception ) {
-                nsSnackBar.error( __( 'An error has occured while seleting the payment gateway.' ) ).subscribe();
+                nsSnackBar.error( __( 'An error has occured while seleting the payment gateway.' ) );
             }
         },
 

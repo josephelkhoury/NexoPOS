@@ -1,7 +1,7 @@
 <template>
     <div class="ns-search">
         <div class="input-group info border-2">
-            <input type="text" v-model="searchText" class="p-2 w-full outline-none" :placeholder="placeholder || __( 'Search...' )" id="">
+            <input type="text" v-model="searchText" class="p-2 w-full outline-hidden" :placeholder="placeholder || __( 'Search...' )" id="">
         </div>
         <div class="relative">
             <div class="w-full absolute shadow-lg">
@@ -56,7 +56,7 @@ export default {
                                 this.results    =   results;
                             },
                             error: error => {
-                                nsSnackBar.error( error.message || __( 'An unexpected error occurred.' ) ).subscribe();
+                                nsSnackBar.error( error.message || __( 'An unexpected error occurred.' ) );
                             }
                         })
                 }

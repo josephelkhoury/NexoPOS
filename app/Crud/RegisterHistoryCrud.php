@@ -70,7 +70,9 @@ class RegisterHistoryCrud extends CrudService
      * @param  array
      */
     public $relations = [
-        [ 'nexopos_users as user', 'user.id', '=', 'nexopos_registers_history.author' ],
+        'join' => [
+            [ User::class, 'user' ],
+        ],
     ];
 
     /**
@@ -405,11 +407,9 @@ class RegisterHistoryCrud extends CrudService
         ];
     }
 
-    public function getTableFooter( Output $output ): Output
+    public function getTableFooter( Output $output )
     {
         $output->addView( 'pages.dashboard.cash-registers.history.footer' );
-
-        return $output;
     }
 
     /**

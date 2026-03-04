@@ -1,11 +1,6 @@
 <?php
-
-use App\Classes\Hook;
-use App\Classes\Output;
 use App\Services\DateService;
-use App\Services\Helper;
 use App\Services\MenuService;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -25,82 +20,20 @@ if ( Auth::check() ) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="en" class="{{ $theme }}">
+<html lang="en" data-theme="{{ $theme }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{!! Helper::pageTitle( $title ?? __( 'Unamed Page' ) ) !!}</title>
-    <?php 
-        $output     =   new Output;
-        Hook::action( "ns-dashboard-header", $output );
-        echo ( string ) $output;
-    ?>
+    <title>{{ App\Services\Helper::pageTitle( $title ?? __( 'Unamed Page' ) ) }}</title>
+    @include( 'layout._header-injection')
     @vite([
         'resources/scss/line-awesome/1.3.0/scss/line-awesome.scss',
-        'resources/scss/grid.scss',
-        'resources/scss/fonts.scss',
-        'resources/scss/animations.scss',
-        'resources/scss/typography.scss',
-        'resources/scss/app.scss',
-        'resources/scss/' . $theme . '.scss'
+        'resources/css/animations.css',
+        'resources/css/fonts.css',
+        'resources/css/' . $theme . '.css'
     ])
     @yield( 'layout.dashboard.header' )
-    <script>
-        /**
-         * constant where is registered
-         * global custom components
-         * @param {Object}
-         */
-        window.nsExtraComponents     =   new Object;
-
-        /**
-         * describe a global NexoPOS object
-         * @param {object} ns
-         */
-        window.ns   =   { nsExtraComponents };
-
-        /**
-         * store the server date
-         * @param {string}
-         */
-        window.ns.date  =   {
-            current : '{{ app()->make( DateService::class )->toDateTimeString() }}',
-            serverDate : '{{ app()->make( DateService::class )->toDateTimeString() }}',
-            timeZone: '{{ ns()->option->get( "ns_datetime_timezone", "Europe/London" ) }}',
-            format: `{{ $dateService->convertFormatToMomment( ns()->option->get( 'ns_datetime_format', 'Y-m-d H:i:s' ) ) }}`
-        }
-
-        /**
-         * Let's define the actul theme used
-         */
-        window.ns.theme     =   `{{ $theme }}`;
-
-        /**
-         * define the current language selected by the user or
-         * the language that applies to the system by default.
-         */
-        window.ns.language      =   '{{ app()->getLocale() }}';
-        window.ns.langFiles     =   <?php echo json_encode( Hook::filter( 'ns.langFiles', [
-            'NexoPOS'   =>  asset( "/lang/" . app()->getLocale() . ".json" ),
-        ]));?>
-
-        /**
-         * We display only fillable values for the
-         * logged user. The password might be displayed on an encrypted form.
-         */
-        window.ns.user              =   <?php echo json_encode( ns()->getUserDetails() );?>;
-        window.ns.user.attributes   =   <?php echo json_encode( Auth::user()->attribute->first() );?>;
-        window.ns.cssFiles          =   <?php echo json_encode( ns()->simplifyManifest() );?>;
-
-        /**
-         * We'll store here the file mime types
-         * that are supported by the media manager.
-         */
-        window.ns.medias            =   {
-            mimes:  <?php echo json_encode( ns()->mediaService->getMimes() )?>,
-            imageMimes: <?php echo json_encode( ns()->mediaService->getImageMimes() );?>
-        }
-    </script>
+    @include( 'layout._header-script' )
     @vite([ 'resources/ts/lang-loader.ts' ])
 </head>
 <body <?php echo in_array( app()->getLocale(), config( 'nexopos.rtl-languages' ) ) ? 'dir="rtl"' : "";?>>
@@ -116,7 +49,7 @@ if ( Auth::check() ) {
                             <h1 class="font-black text-transparent bg-clip-text bg-gradient-to-b from-blue-200 to-indigo-400 text-3xl">NexoPOS</h1>
                             @endif
                         </div>
-                        <ul>
+                        <ul id="aside-menu">
                             @foreach( $menus->getMenus() as $identifier => $menu )
                                 <ns-menu identifier="{{ $identifier }}" toggled="{{ $menu[ 'toggled' ] ?? '' }}" label="{{ @$menu[ 'label' ] }}" icon="{{ @$menu[ 'icon' ] }}" href="{{ @$menu[ 'href' ] }}" notification="{{ isset( $menu[ 'notification' ] ) ? $menu[ 'notification' ] : 0 }}" id="menu-{{ $identifier }}">
                                     @if ( isset( $menu[ 'childrens' ] ) )
@@ -133,6 +66,9 @@ if ( Auth::check() ) {
             <div id="dashboard-overlay">
                 <div v-if="sidebar === 'visible'" @click="closeMenu()" class="z-40 w-full h-full md:hidden absolute" style="background: rgb(51 51 51 / 25%)"></div>
             </div>
+            @hasSection( 'layout.dashboard.canvas' )
+                @yield( 'layout.dashboard.canvas' )
+            @else
             <div id="dashboard-body" class="flex flex-auto flex-col overflow-hidden">
                 <div class="overflow-y-auto flex-auto">
                     @hasSection( 'layout.dashboard.body' )
@@ -156,15 +92,21 @@ if ( Auth::check() ) {
                     @endif
                 </div>
                 <div class="p-2 text-xs flex justify-end text-gray-500">
+                    @if( $latestVersion = ns()->option->get( 'ns_latest_version' ) )
+                    <a href="https://my.nexopos.com/redirect/latest" target="_blank" class="hover:text-blue-400 ml-2 inline-block">
+                        {{ sprintf( __( 'Download NexoPOS %s' ), $latestVersion ) }}
+                    </a>
+                    @else
                     {!! Hook::filter( 'ns-footer-signature', sprintf( __( 'You\'re using <a tager="_blank" href="%s" class="hover:text-blue-400 mx-1 inline-block">NexoPOS %s</a>' ), 'https://my.nexopos.com/en', config( 'nexopos.version' ) ) ) !!}
+                    @endif
                 </div>
             </div>
+            @endif
         </div>
     </div>
     @section( 'layout.dashboard.footer' )
         @include( 'common.popups' )
         @include( 'common.dashboard-footer' )
-        @vite([ 'resources/ts/app.ts' ])
     @show
 </body>
 </html>

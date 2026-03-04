@@ -4,15 +4,21 @@ declare const nsExtraComponents;
 
 export default class FormValidation {
     validateFields( fields ) {
+        const extractedFields = this.extractFields( fields );
+        const labels         = this.extractFieldsLabels( fields );
+        
         return fields.map( field => {
-            this.checkField( field, fields, { touchField: false } );
+            this.checkField( field, extractedFields, labels, { touchField: false } );
             return field.errors ? field.errors.length === 0 : 0;
         }).filter( f => f === false ).length === 0;
     }
 
-    validateFieldsErrors( fields ) {
+    validateFieldsErrors( fields, form ) {
+        const extractedForm = this.extractForm( form );
+        const labels         = this.extractFormLabels( form );
+
         return fields.map( field => {
-            this.checkField( field, fields, { touchField: false });
+            this.checkField( field, extractedForm, labels, { touchField: false });
             return field.errors;
         }).flat();
     }
@@ -30,18 +36,25 @@ export default class FormValidation {
              * Only tabs having fields can be verified.
              */
             const tabsInvalidity    =   [];
+            form.tabs[ key ].errors =   [];
 
             /**
              * if the tabs has some fields
              * we'll make a check on theses
              */
             if ( form.tabs[ key ].fields ) {
-                const validErrors       =   this.validateFieldsErrors( form.tabs[ key ].fields );
+                const validErrors       =   this.validateFieldsErrors( form.tabs[ key ].fields, form );
                 
                 if ( validErrors.length > 0 ) {
                     tabsInvalidity.push(
                         validErrors
                     );
+
+                    /**
+                     * This will add a notification on the tab
+                     * to indicate the user that there are errors
+                     */
+                    form.tabs[ key ].errors.push( ...validErrors );
                 }
 
                 globalErrors.push( tabsInvalidity.flat() );
@@ -88,28 +101,7 @@ export default class FormValidation {
             field.type      =   field.type      || 'text',
             field.errors    =   field.errors    || [];
             field.disabled  =   field.disabled  || false;
-            field.touched   =   false;
-
-            /**
-             * extra component should use the "component" attribute provided
-             * as a string in order to render a new vue component.
-             */
-            if ( field.type === 'custom' && typeof field.component === 'string' ) {
-                const componentName     =   field.component;
-                field.component         =   shallowRef( nsExtraComponents[ field.component ] );
-
-                if ( field.component ) {
-                    /**
-                     * we make sure to make the current field(s)
-                     * available for the custom component.
-                     */
-                    field.component.value.$field      =   field;
-                    field.component.value.$fields     =   fields;
-                } else {
-                    throw `Failed to load a custom component. "${componentName}" is not provided as an extra component. More details here: "https://my.nexopos.com/en/documentation/developpers-guides/how-to-register-a-custom-vue-component"`;
-                }
-            }
-            
+            field.touched   =   false;            
             return field;
         });
     }
@@ -196,7 +188,7 @@ export default class FormValidation {
         return form;
     }
 
-    checkField( field, fields = [], options = {
+    checkField( field, form = {}, labels = {}, options = {
         touchField: true
     } ) {
         if ( field.validation !== undefined ) {
@@ -208,14 +200,14 @@ export default class FormValidation {
              * when the rule "sometimes" is defined. The field will be processed only if there is a value provided.
              */
             if ( ruleNames.includes( 'sometimes' ) ) {
-                if ( field.value !== undefined && field.value.length > 0 ) {
+                if ( ! [ undefined, null ].includes( field.value ) && field.value.length > 0 ) {
                     rules.forEach( rule => {
-                        this.fieldPassCheck( field, rule, fields );
+                        this.fieldPassCheck( field, rule, form, labels );
                     });
                 }
             } else {
                 rules.forEach( rule => {
-                    this.fieldPassCheck( field, rule, fields );
+                    this.fieldPassCheck( field, rule, form, labels );
                 });
             }
         }
@@ -260,38 +252,70 @@ export default class FormValidation {
         return formValue;
     }
 
-    detectValidationRules( validation ) {
-        const execRule  =   ( rule ) => {
-            const minRule 			=	/(min)\:([0-9])+/g;
-            const sometimesRule     =	/(sometimes)/g;
-            const maxRule 			=	/(max)\:([0-9])+/g;
-            const sameRule          =   /(same):(\w+)/g;
-            const diffRule          =   /(different):(\w+)/g;
-            let result;
-
-            if ([ 'email', 'required' ].includes( rule ) ) {
-                return {
-                    identifier : rule
-                };
-            } else if ( rule.length > 0 ) {
-                result = minRule.exec( rule ) || maxRule.exec( rule ) || sameRule.exec( rule ) || diffRule.exec( rule ) || sometimesRule.exec( rule );
-
-                if ( result !== null ) {
-                    return {
-                        identifier : result[1],
-                        value: result[2]
-                    }
+    extractFormLabels( form ) {
+        let formValue  =   {};
+        if ( form.main ) {
+            formValue[ form.main.name ]     =   form.main.label;
+        }
+        if ( form.tabs ) {
+            for( let tab in form.tabs ) {
+                if ( formValue[ form.tabs[ tab ].identifier ] === undefined ) {
+                    formValue[ form.tabs[ tab ].identifier ]    =   {};
                 }
-            } 
-        };
+                formValue[ form.tabs[ tab ].identifier ]   =   this.extractFieldsLabels( form.tabs[ tab ].fields );
+            }
+        }
+        return formValue;
+    }
 
-        if ( Array.isArray( validation ) ) {
-            return validation.filter( r => typeof r === 'string' )
-                .map( execRule );
+    extractFieldsLabels( fields, formValue = {} ) {
+        fields.forEach( field => {
+            formValue[ field.name ]  =   field.label;
+        });
+
+        return formValue;
+    }
+
+    detectValidationRules(validation) {
+        const execRule = (rule) => {
+            const minRule = /(min):([0-9]+)/;
+            const maxRule = /(max):([0-9]+)/;
+            const sameRule = /(same):([^|]+)/;
+            const diffRule = /(different):([^|]+)/;
+            const sometimesRule = /(sometimes)/;
+            const regexRule = /(regex):\/(.+?)\/(?=\||$)/; // Update regex parsing
+            const number = /(number)/;
+    
+            let result;
+    
+            if (['email', 'required'].includes(rule)) {
+                return { identifier: rule };
+            } else if (rule.length > 0) {
+                result =
+                    minRule.exec(rule) ||
+                    maxRule.exec(rule) ||
+                    sameRule.exec(rule) ||
+                    diffRule.exec(rule) ||
+                    sometimesRule.exec(rule) ||
+                    regexRule.exec(rule) ||
+                    number.exec( rule );
+    
+                if (result !== null) {
+                    return {
+                        identifier: result[1],
+                        value: result[2]
+                    };
+                }
+            }
+        };
+    
+        if (Array.isArray(validation)) {
+            return validation.filter(r => typeof r === 'string').map(execRule);
         } else {
-            return validation.split( '|' ).map( execRule );
+            return validation.split('|').map(execRule);
         }
     }
+    
 
     /**
      * Will trigger an error on the form
@@ -371,13 +395,14 @@ export default class FormValidation {
         }
     }
 
-    trackError( field, rule, fields ) {
+    trackError( field, rule, form, labels ) {
         field.errors.push({
             identifier: rule.identifier,
             invalid: true,
             name: field.name,
             rule,
-            fields
+            form,
+            labels,
         })
     }
 
@@ -389,34 +414,102 @@ export default class FormValidation {
         });
     }
 
-    fieldPassCheck( field, rule, fields ) {
-        if ( rule !== undefined ) {
-            const rules     =   {
-                required: ( field, rule ) => field.value === undefined || field.value === null || field.value.length === 0,
-                email: ( field, rule ) => field.value.length > 0 && ! /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,4})+$/.test( field.value ),
-                same: ( field, rule ) => {
-                    const similar = fields.filter( field => field.name === rule.value )
-                    return similar.length === 1 && ( [ 'string', 'number' ].includes( typeof field.value ) && field.value.length > 0 && similar[0].value !== field.value );
-                },
-                different: ( field, rule ) => {
-                    const similar = fields.filter( field => field.name === rule.value )
-                    return similar.length === 1 && ( [ 'string', 'number' ].includes( typeof field.value ) && field.value.length > 0 && similar[0].value === field.value );
-                },
-                min: ( field, rule ) => field.value && field.value.length < parseInt( rule.value ),
-                max: ( field, rule ) => field.value && field.value.length > parseInt( rule.value )
-            }
+    private getFieldValue( field ) {
+        let fieldValue = field.value;
 
-            const ruleValidated   =   rules[ rule.identifier ];
+        /**
+         * We case we have a field that include prefix and suffix, we'll
+         * introduce validation with prefix and suffix.
+         */
+        if ( field.data && field.data['validate-with-suffix'] ) {
+            fieldValue  +=  field.suffix || '';
+        }
 
-            if ( typeof ruleValidated === 'function' ) {
-                if ( ruleValidated( field, rule ) === false ) {
-                    return this.unTrackError( field, rule );                    
+        if ( field.data && field.data[ 'validate-with-prefix' ] ) {
+            fieldValue  =   ( field.prefix || '' ) + fieldValue;
+        }
+        return fieldValue;
+    }
+
+    /**
+     * This methods defines a set of rules that must returns "true" to 
+     * indicate the field check was not successful.
+     * @param field field object
+     * @param rule define rule
+     * @param form sibling fields
+     * @returns any
+     */
+    fieldPassCheck(field, rule, form, labels ) {
+        if (rule !== undefined) {
+            const rules = {
+                required: (field, rule) =>
+                    field.value === undefined || field.value === null || field.value.length === 0,
+    
+                email: (field, rule) =>
+                    field.value !== undefined && field.value.length > 0 && !/^[\w.-]+@([\w-]+\.)+[\w-]{2,}$/i.test(field.value),
+    
+                same: (field, rule) => {
+                    const similar = this.getValueByDotNotation( form, rule.value );
+                    const ruleHasWildcard = rule.value.includes('*'); 
+                    const fieldValue = this.getFieldValue( field );
+                    return ( ! ruleHasWildcard && `${similar}`.length > 0 && fieldValue !== similar );
+                },
+    
+                different: (field, rule) => {
+                    const similar = this.getValueByDotNotation( form, rule.value );
+                    const ruleHasWildcard = rule.value.includes('*'); 
+                    const fieldValue = this.getFieldValue( field );
+                    return ! ruleHasWildcard && similar && fieldValue === similar;
+                },
+    
+                min: (field, rule) => {
+                    const fieldValue = this.getFieldValue( field );
+                    return ! [ null, undefined ].includes( fieldValue ) && fieldValue.length < parseInt(rule.value);
+                },
+
+                max: (field, rule) => {
+                    const fieldValue = this.getFieldValue( field );
+                    return ! [ null, undefined ].includes( fieldValue ) && fieldValue.length > parseInt(rule.value);
+                },
+    
+                regex: (field, rule) => {
+                    const fieldValue = this.getFieldValue( field );
+                    const pattern = new RegExp(rule.value);
+                    return !pattern.test(fieldValue || '');
+                },
+
+                number: ( field, rule ) => {
+                    const fieldValue = this.getFieldValue( field );
+                    return !/^[0-9]+$/.test( fieldValue )
+                }
+            };
+    
+            const ruleValidated = rules[rule.identifier];
+    
+            if (typeof ruleValidated === 'function') {
+                if (ruleValidated(field, rule) === false) {
+                    return this.unTrackError(field, rule);
                 } else {
-                    return this.trackError( field, rule, fields );
+                    return this.trackError(field, rule, form, labels );
                 }
             }
     
             return field;
         }
+    }
+
+    /**
+     * Get a value from an object using dot notation.
+     * @param {Object} obj - The object to search.
+     * @param {string} path - The dot notation path to the value.
+     * @returns {any} - The value at the specified path, or undefined if not found.
+     */
+    getValueByDotNotation(obj, path) {
+        return path.split('.').reduce((acc, key) => {
+            if (acc && typeof acc === 'object') {
+                return acc[key];
+            }
+            return undefined;
+        }, obj);
     }
 }

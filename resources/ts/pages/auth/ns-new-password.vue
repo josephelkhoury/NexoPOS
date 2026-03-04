@@ -1,6 +1,6 @@
 <template>
-    <div class="bg-white rounded shadow overflow-hidden transition-all duration-100">
-        <div class="p-3 -my-2">
+    <div class="ns-box rounded shadow overflow-hidden transition-all duration-100">
+        <div class="p-3">
             <div class="py-2 fade-in-entrance anim-duration-300" v-if="fields.length > 0">
                 <ns-field :key="index" v-for="(field, index) of fields" :field="field"></ns-field>
             </div>
@@ -8,15 +8,12 @@
         <div class="flex items-center justify-center py-10" v-if="fields.length === 0">
             <ns-spinner border="4" size="16"></ns-spinner>
         </div>
-        <div class="flex justify-between items-center bg-gray-200 p-3">
+        <div class="flex justify-end items-center bg-gray-200 p-3">
             <div>
                 <ns-button @click="submitNewPassword()" class="justify-between" type="info">
                     <ns-spinner class="mr-2" v-if="isSubitting" size="6" border="2"></ns-spinner>
                     <span>{{ __( 'Save Password' ) }}</span>
                 </ns-button>
-            </div>
-            <div>
-
             </div>
         </div>
     </div>
@@ -53,7 +50,7 @@ export default {
              */
             setTimeout( () => nsHooks.doAction( 'ns-login-mounted', this ), 100 );
         }, ( error ) => {
-            nsSnackBar.error( error.message || __( 'An unexpected error occurred.' ), __( 'OK' ), { duration: 0 }).subscribe();
+            nsSnackBar.error( error.message || __( 'An unexpected error occurred.' ), __( 'OK' ), { duration: 0 });
         });
     },
     methods: {
@@ -62,7 +59,7 @@ export default {
             const isValid   =   this.validation.validateFields( this.fields );
 
             if ( ! isValid ) {
-                return nsSnackBar.error( __( 'Unable to proceed the form is not valid.' ) ).subscribe();
+                return nsSnackBar.error( __( 'Unable to proceed the form is not valid.' ) );
             }
 
             this.validation.disableFields( this.fields );
@@ -78,7 +75,7 @@ export default {
                         'X-XSRF-TOKEN'  : this.xXsrfToken
                     }
                 }).subscribe( (result) => {
-                    nsSnackBar.success( result.message ).subscribe();
+                    nsSnackBar.success( result.message );
                     setTimeout( () => {
                         document.location   =   result.data.redirectTo;
                     }, 500 );
@@ -90,7 +87,7 @@ export default {
                         this.validation.triggerFieldsErrors( this.fields, error.data );
                     }
 
-                    nsSnackBar.error( error.message ).subscribe();
+                    nsSnackBar.error( error.message );
                 })
             }
         }

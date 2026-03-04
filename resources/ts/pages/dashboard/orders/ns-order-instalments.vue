@@ -3,10 +3,10 @@
         <div class="flex flex-auto">
             <div class="w-full mb-2 flex-wrap">
                 <div class="w-full mb-2 px-4">
-                    <h3 class="font-semibold text-secondary pb-2 border-b border-info-primary">{{ __( 'Instalments' ) }}</h3>
+                    <h3 class="font-semibold text-fontcolor-soft pb-2 border-b border-info-primary">{{ __( 'Instalments' ) }}</h3>
                 </div>
                 <div class="px-4">
-                    <ul class="border-table-th-edge border-t text-primary">
+                    <ul class="border-table-th-edge border-t text-font">
                         <li :class="instalment.paid ? 'success' : 'info'"
                             class="border-b border-l flex justify-between elevation-surface"
                             :key="instalment.id"
@@ -136,7 +136,7 @@ export default {
         },
         showReceipt( instalment ) {
             if ( instalment.payment_id === null ) {
-                return nsSnackBar.error( __( 'This instalment doesn\'t have any payment attached.' ) ).subscribe();
+                return nsSnackBar.error( __( 'This instalment doesn\'t have any payment attached.' ) );
             }
 
             this.print.process( instalment.payment_id, 'payment' );
@@ -158,10 +158,10 @@ export default {
                             .subscribe({
                                 next: result => {
                                     this.loadInstalments();
-                                    nsSnackBar.success( result.message ).subscribe();
+                                    nsSnackBar.success( result.message );
                                 },
                                 error: error => {
-                                    nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) ).subscribe();
+                                    nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) );
                                 }
                             })
                     }
@@ -179,10 +179,10 @@ export default {
                                 next: result => {
                                     const index     =   this.instalments.indexOf( instalment );
                                     this.instalments.splice( index, 1 );
-                                    nsSnackBar.success( result.message ).subscribe();
+                                    nsSnackBar.success( result.message );
                                 },
                                 error: error => {
-                                    nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) ).subscribe();
+                                    nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) );
                                 }
                             })
                     }
@@ -225,10 +225,10 @@ export default {
                         nsHttpClient.put( `/api/orders/${this.order.id}/instalments/${instalment.id}`, { instalment })
                             .subscribe({
                                 next: result => {
-                                    nsSnackBar.success( result.message ).subscribe();
+                                    nsSnackBar.success( result.message );
                                 },
                                 error: error => {
-                                    nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) ).subscribe();
+                                    nsSnackBar.error( error.message || __( 'An unexpected error has occurred' ) );
                                 }
                             })
                     }
