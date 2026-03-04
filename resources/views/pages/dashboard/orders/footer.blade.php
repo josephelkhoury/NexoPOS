@@ -5,7 +5,7 @@ use App\Services\OrdersService;
 
 $ordersService  =   app()->make( OrdersService::class );
 ?>
-@vite(['resources/ts/dashboard.ts'])
+
 <script>
 const processingStatuses  =   <?php echo json_encode( Helper::kvToJsOptions( $ordersService->getProcessStatuses() ));?>;
 const deliveryStatuses    =   <?php echo json_encode( Helper::kvToJsOptions( $ordersService->getDeliveryStatuses() ));?>;
